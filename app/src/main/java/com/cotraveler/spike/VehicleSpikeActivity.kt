@@ -115,10 +115,19 @@ class VehicleSpikeActivity : Activity() {
             onComplete = { _, v -> log("설정온도 → ${v}°C") },
             onFailed = { log("설정온도 제어 실패: $it") },
         )
-        hvac.setHvacRecirculation(
-            driver, false,
-            onComplete = { _, v -> log("내기순환 → $v (false = 외기 유입)") },
-            onFailed = { log("내기순환 제어 실패: $it") },
+        // 내기순환은 좌석별이 아니라 차량 전체 영역이라 지원 영역을 받아서 호출한다
+        hvac.checkHvacRecirculationCapabilities(
+            onComplete = { config, areas ->
+                log("내기순환 지원 영역 = ${areas.map { it.values.toList() }}, config = $config")
+                areas.forEach { area ->
+                    hvac.setHvacRecirculation(
+                        area, false,
+                        onComplete = { _, v -> log("내기순환 → $v (false = 외기 유입)") },
+                        onFailed = { log("내기순환 제어 실패: $it") },
+                    )
+                }
+            },
+            onFailed = { log("내기순환 캐퍼빌리티 실패: $it") },
         )
         vehicle.getWindow().checkWindowPositionCapabilities(
             onComplete = { bounds: Map<WindowArea, *> ->
@@ -127,7 +136,8 @@ class VehicleSpikeActivity : Activity() {
             onFailed = { log("창문 캐퍼빌리티 실패: $it") },
         )
         vehicle.getWindow().setWindowPosition(
-            driverWindow, 10,
+            // 범위가 0~10(완전 개방)이라 2 = 약 20% 소폭 개방
+            driverWindow, 2,
             onComplete = { _, v -> log("운전석 창문 → $v") },
             onFailed = { log("창문 제어 실패: $it") },
         )
@@ -144,22 +154,30 @@ class VehicleSpikeActivity : Activity() {
     }
 
     private fun ambient(color: Int) {
+        // 앰비언트도 좌석별이 아니라 차량 전체 영역이라 지원 영역을 받아서 호출한다
         val light = vehicle.getLight()
-        light.setAmbientLightSwitch(
-            driver, LightSwitch.ON,
-            onComplete = { _, v -> log("앰비언트 스위치 → $v") },
-            onFailed = { log("앰비언트 스위치 실패: $it") },
-        )
-        light.setAmbientLightBrightnessColor(
-            driver, color,
-            onComplete = { _, v -> log("앰비언트 색 → #${Integer.toHexString(v)}") },
-            onFailed = { log("앰비언트 색 실패: $it") },
+        light.checkAmbientLightBrightnessColorCapabilities(
+            onComplete = { _, areas ->
+                areas.forEach { area ->
+                    light.setAmbientLightSwitch(
+                        area, LightSwitch.ON,
+                        onComplete = { _, v -> log("앰비언트 스위치 → $v") },
+                        onFailed = { log("앰비언트 스위치 실패: $it") },
+                    )
+                    light.setAmbientLightBrightnessColor(
+                        area, color,
+                        onComplete = { _, v -> log("앰비언트 색 → #${Integer.toHexString(v)}") },
+                        onFailed = { log("앰비언트 색 실패: $it") },
+                    )
+                }
+            },
+            onFailed = { log("앰비언트 캐퍼빌리티 실패: $it") },
         )
     }
 
     private fun capabilities() {
         vehicle.getLight().checkAmbientLightBrightnessColorCapabilities(
-            onComplete = { config, areas -> log("앰비언트 색 지원 영역 = $areas, config = $config") },
+            onComplete = { config, areas -> log("앰비언트 색 지원 영역 = ${areas.map { it.values.toList() }}, config = $config") },
             onFailed = { log("앰비언트 캐퍼빌리티 실패: $it") },
         )
     }

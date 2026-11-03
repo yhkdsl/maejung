@@ -45,10 +45,17 @@ PT 데모 축은 "명절 귀성길 서울→부산 4시간" 시나리오 하나�
 
 ## 현재 상태
 
-- `app/src/main/java/com/cotraveler/spike/VehicleSpikeActivity.kt`: 조회·구독·제어(각성/바다 연출) 스파이크. 빌드 성공, 에뮬레이터 동작은 미확인.
-- Pleos Connect Emulator(API 34 이미지) 미설치. 설치 시 42dot SDK 라이선스 동의가 필요하므로 사용자가 직접 하거나 채팅으로 명시적으로 동의해야 한다.
-  - 이미지 저장소(Mac): `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-arm64-sys-img.xml`
-  - AVD: Automotive > Pleos Connect v2.1.0, Cold boot, RAM 4GB
+- `app/src/main/java/com/cotraveler/spike/VehicleSpikeActivity.kt`: 조회·구독·제어(각성/바다 연출) 스파이크. 에뮬레이터에서 동작 확인 완료(결과는 docs/DESIGN.md 7절).
+- 앰비언트 라이트·내기순환은 차량 전체 영역이라 캐퍼빌리티가 준 영역으로 호출해야 하고, 앰비언트 set에는 `CONTROL_CAR_LIGHTS`가 필요하다. 트립 주행시간은 에뮬레이터 미지원.
+- 사용자는 2026-11-03 채팅으로 42dot SDK 라이선스에 동의했고, Pleos Connect Emulator 이미지가 설치되어 있다.
+
+## 에뮬레이터 실행
+
+- AVD 이름: `Pleos_Connect_v2_1` (API 34 `pleos_car_emulator` arm64, Cold boot, RAM 4GB)
+- 실행: `~/Library/Android/sdk/emulator/emulator -avd Pleos_Connect_v2_1 -no-snapshot-load` (백그라운드로)
+- 설치: `adb install -r app/build/outputs/apk/debug/app-debug.apk` (`-q` 옵션은 에뮬레이터가 거부한다)
+- Virtual Console: `adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`
+- 화면 조작·로그 확인은 `uiautomator dump`로 버튼 좌표와 텍스트를 읽어 `adb shell input tap`으로 누른다.
 
 ## 빌드
 

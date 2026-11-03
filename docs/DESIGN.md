@@ -60,7 +60,7 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 
 | 신호 | 출처 | 가중 |
 |---|---|---|
-| 연속 주행시간(2시간 이후 급증) | `Odometer.getTripCurrentDrivingTime` / `registerTripCurrentDrivingTime` (분) | 높음 |
+| 연속 주행시간(2시간 이후 급증) | 앱 자체 주행 타이머(주행 시작~정차 구간 누적). `Odometer.getTripCurrentDrivingTime`은 에뮬레이터에서 `ERROR_NOT_SUPPORTED_PROPERTY`라 지원될 때만 보조로 쓴다. 데모는 시나리오 리플레이어로 시간을 주입한다 | 높음 |
 | 시간대(02~06시, 14~16시) | 시스템 시각 | 중간 |
 | 크루즈 장시간 사용(단조 주행) | `DrivingMode.getCruiseControlState` | 중간 |
 | 브레이크 패턴 변화(평소 대비 빈도 급변) | `Brake.registerBrakePedalStatus` | 중간 |
@@ -92,6 +92,8 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 | `window:crack` | 운전석 창문 소폭 개방(속도·날씨 조건 확인 후, 실행 전 음성 안내) | `Window.setWindowPosition(WindowArea(ROW_1_LEFT), value)` (범위는 capability로 확인) |
 
 - 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다. 미지원이면 태그를 건너뛰고 음성만 재생한다.
+- **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다. 내기순환 지원 영역은 `[ROW_1_LEFT, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_CENTER, ROW_2_RIGHT]` 하나다.
+- 창문 위치 범위는 0~10(10 = 완전 개방)이다. `window:crack`은 2(약 20%)로 한다.
 - 모드가 끝나면 연출 전 상태로 복구한다(시작 시 현재 값을 저장).
 
 ## 5. Vehicle SDK 매핑
@@ -108,7 +110,8 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 | DrivingMode (`getDrivingMode`) | `getCruiseControlState(onComplete: (CruiseControl?))` | CAR_DRIVE | 단조 주행 |
 | HVAC (`getHVAC`) | `getHvacTemperature(area, unit, …)`, `setHvacTemperature(area, Float, TemperatureUnit, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | 연출·각성 |
 | HVAC | `setHvacRecirculation(area, Boolean, …)`, `setHvacFanSpeed(area, Int, …)` | CONTROL_CAR_CLIMATE | 외기 유입, 풍량 |
-| Light (`getLight`) | `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities` | CAR_LIGHTS | 장면 색 |
+| Light (`getLight`) | `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities(onComplete: (CapabilityConfig, List<SeatArea>))` | CAR_LIGHTS + **CONTROL_CAR_LIGHTS** (문서에는 CAR_LIGHTS만 적혀 있지만 set에 제어 퍼미션이 없으면 SecurityException) | 장면 색 |
+| HVAC | `checkHvacRecirculationCapabilities(onComplete: (CapabilityConfig, List<SeatArea>))` | CAR_CLIMATE | 내기순환 지원 영역 |
 | Window (`getWindow`) | `getCurrentWindowPosition`, `setWindowPosition(WindowArea, Int, …)`, `checkWindowPositionCapabilities` | CAR_WINDOWS / CONTROL_CAR_WINDOWS | 각성 시 창문 |
 | Seat, EvBattery | (확장) 휴식 모드 리클라인, 휴식 가능 시간 | CAR_SEATS, CAR_ENERGY | REST 모드 |
 
@@ -142,9 +145,25 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 
 `VoiceIO`, `LocationSource`를 인터페이스로 두고 구현체만 바꾼다.
 
-## 7. 미결 사항
+## 7. 에뮬레이터 스파이크 결과 (2026-11-03, Pleos Connect Emulator v2.1.0)
 
-- [ ] 에뮬레이터에서 HVAC·Light·Window set이 3rd party 앱으로 동작하는가 (스파이크)
-- [ ] Virtual Console로 주행시간·브레이크·크루즈 신호를 주입할 수 있는가
+| 항목 | 결과 |
+|---|---|
+| 퍼미션 7개(조회 4, 제어 3) | 설치 시 모두 granted |
+| 조회: 브레이크, 크루즈, 설정온도, 창문 위치 | 성공 |
+| 조회·구독: 트립 주행시간·거리 | `ERROR_NOT_SUPPORTED_PROPERTY` |
+| 구독: 브레이크 | 성공. Virtual Console BRAKE 입력 → true/false 콜백 |
+| 제어: 설정온도 18°C/23°C | 성공, Virtual Console에 반영 |
+| 제어: 내기순환 off | 지원 영역으로 호출하면 성공 |
+| 제어: 창문 2/10 | 성공 |
+| 제어: 앰비언트 ON + 색 | CONTROL_CAR_LIGHTS 추가 + 지원 영역으로 호출하면 성공 |
+
+- Vehicle Control SDK가 Playground에서 "준비 중"이어도 에뮬레이터에서는 3rd party 앱의 제어 호출이 동작한다. 실제 마켓 탑재 때 퍼미션 승인 여부는 별개다.
+- Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)로 기어, 브레이크, 크루즈, 공조, 창문, 앰비언트, 배터리를 주입할 수 있다. 트립 주행시간 카드는 없다.
+
+## 8. 미결 사항
+
+- [x] 에뮬레이터에서 HVAC·Light·Window set이 3rd party 앱으로 동작하는가 → 동작함
+- [x] Virtual Console로 신호를 주입할 수 있는가 → 브레이크·크루즈·기어 가능, 트립 주행시간 불가
 - [ ] AAOS에서 외부 네트워크(LLM 백엔드) 호출 제약
 - [ ] NaviHelper로 ETA 조회·경유지 추가 API 확인
