@@ -2,6 +2,13 @@
 
 기획 원본(시나리오, 사업성, 안전 원칙)은 Obsidian `01. Projects/HMG 차량용 앱 공모전/`에 있다. 이 문서는 코드와 같이 바뀌는 설계만 다룬다.
 
+## 0. 설계 원칙
+
+- **핵심 기능은 음성으로 완결한다.** 동화, 도슨트, 졸음 대화·휴게소 안내는 차량 제어 없이 동작해야 한다.
+- **차량 제어는 연출 레이어다.** Light(앰비언트)와 HVAC(온도·외기·풍량)만 쓴다. 지원되지 않거나 실패하면 연출만 건너뛴다.
+- **창문·도어 등 주행 안전에 영향을 주는 제어는 하지 않는다** (2026-11-03 결정).
+- 연출이 끝나면 연출 전 상태로 되돌린다.
+
 ## 1. 모드와 우선순위
 
 | 우선순위 | 모드 | 진입 조건 | 종료 조건 |
@@ -50,7 +57,7 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 | StoryEngine | 백엔드에 이야기 생성을 요청하고 ETA에 맞춰 분량을 조절한다. 다음 장면을 미리 받아 둔다 |
 | AwakeController | 각성 대화(퀴즈, 끝말잇기), 휴게소 경유지 제안 |
 | DocentEngine | 위치 기반으로 해설 트리거, 경유지 추가 제안 |
-| AmbientDirector | 연출 태그를 Vehicle SDK 호출로 바꾼다. capability 확인과 원상 복구를 맡는다 |
+| AmbientDirector | 연출 태그를 Light·HVAC 호출로 바꾼다. capability 확인과 원상 복구를 맡는다 |
 | VoiceIO | TTS·STT 추상화. 지금은 Android 표준 API, Pleos SDK가 열리면 교체 |
 | Backend (별도) | LLM 프록시. API 키 보관, 아동 콘텐츠 필터, 캐싱 |
 
@@ -89,11 +96,10 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 | `hvac:warm` / `hvac:cool` | 설정온도 ±2~3°C | `HVAC.setHvacTemperature(area, °C, CELSIUS)` |
 | `hvac:fresh` | 외기 유입 | `HVAC.setHvacRecirculation(area, false)` |
 | `hvac:fan+` | 풍량 증가 | `HVAC.setHvacFanSpeed(area, level)` (범위는 capability로 확인) |
-| `window:crack` | 운전석 창문 소폭 개방(속도·날씨 조건 확인 후, 실행 전 음성 안내) | `Window.setWindowPosition(WindowArea(ROW_1_LEFT), value)` (범위는 capability로 확인) |
 
 - 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다. 미지원이면 태그를 건너뛰고 음성만 재생한다.
 - **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다. 내기순환 지원 영역은 `[ROW_1_LEFT, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_CENTER, ROW_2_RIGHT]` 하나다.
-- 창문 위치 범위는 0~10(10 = 완전 개방)이다. `window:crack`은 2(약 20%)로 한다.
+- 창문 제어는 쓰지 않는다. 참고로 창문 위치 범위는 0~10(10 = 완전 개방)이다.
 - 모드가 끝나면 연출 전 상태로 복구한다(시작 시 현재 값을 저장).
 
 ## 5. Vehicle SDK 매핑
@@ -112,7 +118,7 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 | HVAC | `setHvacRecirculation(area, Boolean, …)`, `setHvacFanSpeed(area, Int, …)` | CONTROL_CAR_CLIMATE | 외기 유입, 풍량 |
 | Light (`getLight`) | `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities(onComplete: (CapabilityConfig, List<SeatArea>))` | CAR_LIGHTS + **CONTROL_CAR_LIGHTS** (문서에는 CAR_LIGHTS만 적혀 있지만 set에 제어 퍼미션이 없으면 SecurityException) | 장면 색 |
 | HVAC | `checkHvacRecirculationCapabilities(onComplete: (CapabilityConfig, List<SeatArea>))` | CAR_CLIMATE | 내기순환 지원 영역 |
-| Window (`getWindow`) | `getCurrentWindowPosition`, `setWindowPosition(WindowArea, Int, …)`, `checkWindowPositionCapabilities` | CAR_WINDOWS / CONTROL_CAR_WINDOWS | 각성 시 창문 |
+| Window (`getWindow`) | (사용 안 함, 스파이크에서만 검증) `setWindowPosition(WindowArea, Int, …)` | CAR_WINDOWS / CONTROL_CAR_WINDOWS | - |
 | Seat, EvBattery | (확장) 휴식 모드 리클라인, 휴식 가능 시간 | CAR_SEATS, CAR_ENERGY | REST 모드 |
 
 ### 주요 타입 (import 경로)
