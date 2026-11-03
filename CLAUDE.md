@@ -6,7 +6,12 @@
 
 - 기획서 초안: `~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 기획서 초안.md`
 - 개발 계획: `~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 개발 계획.md`
+- 요강 분석과 아이디어 선정 근거(심사 기준, 시상, 제출 규정, README·APK 규칙): `~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 요강 분석과 아이디어 선정.md`
 - 새 계획이나 기능 문서도 같은 Obsidian 폴더에 저장한다.
+
+## 설계 문서 (저장소)
+
+- [docs/DESIGN.md](docs/DESIGN.md): 모드·우선순위, 컴포넌트, 피로 점수, 연출 태그, Vehicle SDK API 매핑(시그니처·퍼미션·import 경로), 대체 구현. 코드를 바꾸면 같이 갱신한다.
 
 ## 일정
 
