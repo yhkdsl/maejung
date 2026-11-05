@@ -7,7 +7,7 @@
 - **양쪽 동의로 시작하고, 어느 쪽이든 끝낼 수 있다.** 탑승자가 요청하고 운전자가 승인해야 위치가 오간다.
 - **위치는 세션 동안만 오간다.** 세션이 끝나면 서버의 위치 행을 지운다. 상시 추적 기능은 만들지 않는다.
 - **종료는 자동이 기본, 수동은 예비다.** 탑승 감지, 무응답 2분, 세션 60분 중 먼저 오는 조건으로 끝낸다.
-- **차량 제어는 앰비언트와 공조만 쓰고, 끝나면 원상 복구한다.** 문·창문은 읽기만 한다.
+- **차량은 신호를 읽기만 하고 제어하지 않는다.** 대기 모드(화면·공조 절약)와 약속 색 앰비언트는 빼기로 했다(2026-11-06).
 - 주행 중에는 조작을 최소화한다. 승인은 음성 또는 큰 버튼 하나.
 
 ## 1. 구성
@@ -25,13 +25,11 @@
 | 상태 | 진입 | 차 앱 | 폰 앱 |
 |---|---|---|---|
 | REQUESTED | 폰에서 "데리러 와줘" | 알림 + 음성, 승인/거절 | "요청 보냄" |
-| SHARING | 차에서 승인 | 상대 위치, ETA | 차 위치, ETA, 약속 색 |
-| WAITING | SHARING 중 기어 P | 대기 모드(화면 어둡게, 공조 절약), 약속 색 앰비언트 | "차 도착, ○○ 불빛 차" |
-| BOARDED | 탑승 판정 | "탑승 확인" 음성, 연출 복구 | 종료 알림 |
-| ENDED | 수동 종료(어느 쪽이든), 앱 종료 | 연출 복구 | - |
-| EXPIRED | 상대 위치 2분 무응답, 세션 60분 초과, 요청 5분 무응답 | 연출 복구 | 만료 알림 |
+| SHARING | 차에서 승인 | 상대 위치, ETA | 차 위치, ETA |
+| BOARDED | 탑승 판정 | "탑승 확인" 음성 | 종료 알림 |
+| ENDED | 수동 종료(어느 쪽이든), 앱 종료 | - | - |
+| EXPIRED | 상대 위치 2분 무응답, 세션 60분 초과, 요청 5분 무응답 | 만료 알림 | 만료 알림 |
 
-- WAITING에서 기어가 P가 아니게 되면 SHARING으로 돌아간다.
 - BOARDED·ENDED·EXPIRED는 종료 상태다. 들어가면 서버의 위치 행을 지운다.
 
 ## 3. 탑승 판정
@@ -45,16 +43,13 @@
 - 착석(`SeatOccupancy`)·벨트(`SeatBeltBuckledState`)는 보조 신호로 로그만 남긴다. 에뮬레이터 기본값이 모든 좌석 착석 true라 판정 조건으로 쓰기 어렵다.
 - 판정 직후 "○○ 탑승했나요?"를 묻지 않고 바로 끝낸다. 잘못 끝났으면 폰에서 다시 요청하면 된다.
 
-## 4. 차량 연출
+## 4. 차량 제어 (쓰지 않음)
 
-| 연출 | 시점 | API |
-|---|---|---|
-| 약속 색 앰비언트 | WAITING 진입 | `Light.setAmbientLightSwitch(ON)` + `setAmbientLightBrightnessColor(area, argb)` |
-| 공조 절약 | WAITING 진입 | `HVAC.setHvacFanSpeed(area, 낮은 단계)`, 필요 시 설정온도 조정 |
-| 복구 | 종료 상태 진입, WAITING 이탈 | 시작 시 저장한 값으로 되돌림 |
+대기 모드(화면·공조 절약)와 약속 색 앰비언트는 2026-11-06 빼기로 했다. 나중에 제어를 다시 쓸 때를 위해 검증한 내용만 남긴다.
 
-- 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다. 미지원이면 연출만 건너뛴다.
+- 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다.
 - **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다.
+- 앰비언트 set에는 `CONTROL_CAR_LIGHTS`가 필요하다(문서에는 CAR_LIGHTS만 적혀 있지만 없으면 SecurityException).
 
 ## 5. Vehicle SDK 매핑
 
@@ -64,11 +59,11 @@
 
 | 도메인 (getter) | API | 퍼미션 | 용도 |
 |---|---|---|---|
-| Gear (`getGear`) | `registerGearSelection(GearSelectionListener)` → `onSelected(VehicleGear?)` | CAR_DRIVE | WAITING, 탑승 판정 |
+| Gear (`getGear`) | `registerGearSelection(GearSelectionListener)` → `onSelected(VehicleGear?)` | CAR_DRIVE | 탑승 판정 |
 | Door (`getDoor`) | `checkDoorPositionCapabilities(onComplete: (Map<DoorArea, AreaBounds<Int>>))`, `getCurrentDoorPosition(DoorArea, (Int?))`, `registerDoorPosition(DoorArea, DoorPositionListener)` → `onPositionUpdated(Int?)` | CAR_DOORS (normal) | 탑승 판정 |
 | Seat (`getSeat`) | `getCurrentSeatOccupancy(SeatArea, (Boolean?))`, `registerSeatOccupancy(SeatArea, SeatOccupancyListener)`, `registerSeatBeltBuckledState(SeatArea, SeatBeltBuckledStateListener)` | CAR_SEATS (normal) | 탑승 보조 신호 |
-| Light (`getLight`) | `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities` | CAR_LIGHTS + **CONTROL_CAR_LIGHTS** (문서에는 CAR_LIGHTS만 적혀 있지만 set에 제어 퍼미션이 없으면 SecurityException) | 약속 색 |
-| HVAC (`getHVAC`) | `getHvacTemperature`, `setHvacTemperature(area, Float, TemperatureUnit, …)`, `setHvacFanSpeed(area, Int, …)`, `setHvacRecirculation(area, Boolean, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | 공조 절약, 복구 |
+| Light (`getLight`) | (검증만, 사용 안 함) `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities` | CAR_LIGHTS + CONTROL_CAR_LIGHTS | - |
+| HVAC (`getHVAC`) | (검증만, 사용 안 함) `getHvacTemperature`, `setHvacTemperature(area, Float, TemperatureUnit, …)`, `setHvacFanSpeed(area, Int, …)`, `setHvacRecirculation(area, Boolean, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | - |
 
 ### 주요 타입 (import 경로)
 
