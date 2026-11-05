@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.cotraveler"
+    namespace = "com.maejung"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.cotraveler"
+        applicationId = "com.maejung"
         minSdk = 28
         targetSdk = 34
         versionCode = 1

@@ -2,7 +2,7 @@
 
 현대자동차그룹 차량용 앱 개발 공모전(Pleos App Market) 출품작. 탑승할 사람이 폰에서 "데리러 와줘"를 누르면 차 화면에 알림이 뜨고, 운전자가 승인하면 서로의 위치와 도착 예정 시간이 공유된다. 차가 기어·문 신호로 탑승을 알아채면 공유를 스스로 끝낸다.
 
-2026-11-06 이전 컨셉 "동행"(AI 여정 동반자)에서 바꿨다. 저장소 폴더 이름(`cotraveler`)과 패키지(`com.cotraveler`)는 그대로 둔다.
+2026-11-06 이전 컨셉 "동행"(AI 여정 동반자)에서 바꿨다. 같은 날 저장소 폴더를 `~/IdeaProjects/cotraveler`에서 `~/IdeaProjects/maejung`으로, 패키지를 `com.cotraveler`에서 `com.maejung`으로 바꿨다.
 
 ## 기획 문서 (Obsidian, 원본은 여기)
 
@@ -51,7 +51,7 @@
 
 ## 현재 상태
 
-- `app/src/main/java/com/cotraveler/spike/VehicleSpikeActivity.kt`: SDK 스파이크. 조회·구독·제어, 외부 통신(HTTPS, WebSocket), 탑승 신호(기어, 문, 착석, 벨트) 확인 완료(docs/DESIGN.md 7절). 각성·바다 연출과 창문 제어 버튼은 이전 컨셉 검증 기록으로만 남아 있다.
+- `app/src/main/java/com/maejung/spike/VehicleSpikeActivity.kt`: SDK 스파이크. 조회·구독·제어, 외부 통신(HTTPS, WebSocket), 탑승 신호(기어, 문, 착석, 벨트) 확인 완료(docs/DESIGN.md 7절). 각성·바다 연출과 창문 제어 버튼은 이전 컨셉 검증 기록으로만 남아 있다.
 - 사용자는 2026-11-03 채팅으로 42dot SDK 라이선스에 동의했고, Pleos Connect Emulator 이미지가 설치되어 있다.
 
 ## 에뮬레이터 실행

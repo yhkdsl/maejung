@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "cotraveler"
+rootProject.name = "maejung"
 include(":app")
