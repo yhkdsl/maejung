@@ -1,14 +1,28 @@
 package com.cotraveler.spike
 
 import ai.pleos.playground.vehicle.Vehicle
+import ai.pleos.playground.vehicle.api.model.area.DoorArea
 import ai.pleos.playground.vehicle.api.model.area.SeatArea
 import ai.pleos.playground.vehicle.api.model.area.WindowArea
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.constant.area.WindowValue
 import ai.pleos.playground.vehicle.constant.control.LightSwitch
+import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.unit.TemperatureUnit
 import ai.pleos.playground.vehicle.listener.BrakePedalStatusListener
+import ai.pleos.playground.vehicle.listener.DoorPositionListener
 import ai.pleos.playground.vehicle.listener.DrivingTimeListener
+import ai.pleos.playground.vehicle.listener.GearSelectionListener
+import ai.pleos.playground.vehicle.listener.SeatBeltBuckledStateListener
+import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import java.io.IOException
 import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
@@ -21,7 +35,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Vehicle SDK 스파이크: 동행 앱이 쓸 도메인의 조회, 구독, 제어가 에뮬레이터에서 되는지 확인한다.
+ * Vehicle SDK 스파이크: 앱이 쓸 도메인의 조회, 구독, 제어와 외부 통신이 에뮬레이터에서 되는지 확인한다.
+ * 3·4번(각성·바다 연출, 창문)은 이전 컨셉 "동행"의 검증 기록이다.
  * Virtual Console로 신호를 바꿔가며 로그를 본다.
  */
 class VehicleSpikeActivity : Activity() {
@@ -35,6 +50,14 @@ class VehicleSpikeActivity : Activity() {
     private val drivingTimeListener = object : DrivingTimeListener {
         override fun onDrivingTimeUpdated(value: Int?) = log("[구독] 트립 주행시간 = ${value}분")
         override fun onFailed(e: Exception) = log("[구독] 트립 주행시간 실패: $e")
+    }
+
+    private val http = OkHttpClient()
+    private val passengerSeats = listOf(SeatValue.ROW_1_RIGHT, SeatValue.ROW_2_LEFT, SeatValue.ROW_2_RIGHT).map { SeatArea(it) }
+
+    private val gearListener = object : GearSelectionListener {
+        override fun onSelected(selection: VehicleGear?) = log("[구독] 기어 = $selection")
+        override fun onFailed(e: Exception) = log("[구독] 기어 실패: $e")
     }
 
     private val brakeListener = object : BrakePedalStatusListener {
@@ -56,6 +79,8 @@ class VehicleSpikeActivity : Activity() {
             addView(button("3. 각성 연출") { awakeCue() })
             addView(button("4. 키즈 바다 연출") { oceanCue() })
             addView(button("5. 캐퍼빌리티 확인") { capabilities() })
+            addView(button("6. 외부 통신 (HTTPS, WebSocket)") { network() })
+            addView(button("7. 탑승 감지 구독 (기어, 문, 착석, 벨트)") { boarding() })
             addView(button("로그 지우기") { logView.text = "" })
             addView(ScrollView(context).apply { addView(logView) })
         }
@@ -173,6 +198,61 @@ class VehicleSpikeActivity : Activity() {
             },
             onFailed = { log("앰비언트 캐퍼빌리티 실패: $it") },
         )
+    }
+
+    /** 마중: 차 앱이 외부 서버와 HTTPS, WebSocket으로 통신할 수 있는지 */
+    private fun network() {
+        http.newCall(Request.Builder().url("https://httpbin.org/get").build()).enqueue(object : Callback {
+            override fun onResponse(call: Call, response: Response) =
+                response.use { log("HTTPS → ${it.code}, ${it.body?.string()?.length}바이트") }
+            override fun onFailure(call: Call, e: IOException) = log("HTTPS 실패: $e")
+        })
+        http.newWebSocket(Request.Builder().url("wss://echo.websocket.org").build(), object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                log("WebSocket 연결됨")
+                webSocket.send("maejung-ping")
+            }
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                log("WebSocket 수신: $text")
+                if (text == "maejung-ping") webSocket.close(1000, null)
+            }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = log("WebSocket 실패: $t")
+        })
+    }
+
+    /** 마중: 탑승 자동 종료에 쓸 신호(기어 P, 문 열림·닫힘, 착석, 벨트)가 들어오는지 */
+    private fun boarding() {
+        vehicle.getGear().registerGearSelection(gearListener)
+        val door = vehicle.getDoor()
+        door.checkDoorPositionCapabilities(
+            onComplete = { bounds: Map<DoorArea, *> ->
+                log("문 캐퍼빌리티 = $bounds")
+                bounds.keys.forEach { area -> door.registerDoorPosition(area, doorListener(area)) }
+            },
+            onFailed = { log("문 캐퍼빌리티 실패: $it") },
+        )
+        val seat = vehicle.getSeat()
+        passengerSeats.forEach { area ->
+            seat.getCurrentSeatOccupancy(
+                area,
+                onComplete = { log("착석 ${area.values.toList()} = $it") },
+                onFailed = { log("착석 ${area.values.toList()} 실패: $it") },
+            )
+            seat.registerSeatOccupancy(area, object : SeatOccupancyListener {
+                override fun onSeatOccupancyUpdated(occupancy: Boolean?) = log("[구독] 착석 ${area.values.toList()} = $occupancy")
+                override fun onFailed(e: Exception) = log("[구독] 착석 실패: $e")
+            })
+            seat.registerSeatBeltBuckledState(area, object : SeatBeltBuckledStateListener {
+                override fun onSeatBeltBuckledStateUpdated(state: Boolean?) = log("[구독] 벨트 ${area.values.toList()} = $state")
+                override fun onFailed(e: Exception) = log("[구독] 벨트 실패: $e")
+            })
+        }
+        log("기어, 문, 착석, 벨트 구독 등록")
+    }
+
+    private fun doorListener(area: DoorArea) = object : DoorPositionListener {
+        override fun onPositionUpdated(pos: Int?) = log("[구독] 문 ${area.values.toList()} = $pos")
+        override fun onFailed(e: Exception) = log("[구독] 문 실패: $e")
     }
 
     private fun capabilities() {

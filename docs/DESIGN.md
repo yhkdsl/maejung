@@ -1,106 +1,60 @@
-# 동행 설계
+# 마중 설계
 
-기획 원본(시나리오, 사업성, 안전 원칙)은 Obsidian `01. Projects/HMG 차량용 앱 공모전/`에 있다. 이 문서는 코드와 같이 바뀌는 설계만 다룬다.
+기획 원본(시나리오, 사업성, 개인정보 원칙)은 Obsidian `01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 마중 기획서 초안.md`에 있다. 이 문서는 코드와 같이 바뀌는 설계만 다룬다.
 
 ## 0. 설계 원칙
 
-- **핵심 기능은 음성으로 완결한다.** 동화, 도슨트, 졸음 대화·휴게소 안내는 차량 제어 없이 동작해야 한다.
-- **차량 제어는 연출 레이어다.** Light(앰비언트)와 HVAC(온도·외기·풍량)만 쓴다. 지원되지 않거나 실패하면 연출만 건너뛴다.
-- **창문·도어 등 주행 안전에 영향을 주는 제어는 하지 않는다** (2026-11-03 결정).
-- 연출이 끝나면 연출 전 상태로 되돌린다.
+- **양쪽 동의로 시작하고, 어느 쪽이든 끝낼 수 있다.** 탑승자가 요청하고 운전자가 승인해야 위치가 오간다.
+- **위치는 세션 동안만 오간다.** 세션이 끝나면 서버의 위치 행을 지운다. 상시 추적 기능은 만들지 않는다.
+- **종료는 자동이 기본, 수동은 예비다.** 탑승 감지, 무응답 2분, 세션 60분 중 먼저 오는 조건으로 끝낸다.
+- **차량 제어는 앰비언트와 공조만 쓰고, 끝나면 원상 복구한다.** 문·창문은 읽기만 한다.
+- 주행 중에는 조작을 최소화한다. 승인은 음성 또는 큰 버튼 하나.
 
-## 1. 모드와 우선순위
+## 1. 구성
 
-| 우선순위 | 모드 | 진입 조건 | 종료 조건 |
+```
+[폰 앱] ──HTTPS/WebSocket──► [Supabase: Auth, Postgres, Realtime] ◄──WebSocket── [차 앱 (Pleos)]
+ 요청, 내 위치                  세션, 위치 중계, 종료 시 삭제             승인, 차 위치, 차량 신호
+```
+
+- 차에는 GMS가 없어 FCM을 못 쓴다. 차 앱은 Realtime 채널을 구독해 요청을 받는다.
+- 폰 앱은 Android만 만든다. 위치는 FusedLocationProvider(폰에는 GMS가 있다).
+
+## 2. 세션 상태
+
+| 상태 | 진입 | 차 앱 | 폰 앱 |
 |---|---|---|---|
-| 1 | AWAKE (각성) | 피로 단계 2 이상 | 피로 단계 1 이하로 떨어지거나 휴게소 도착 |
-| 2 | KIDS_STORY (키즈 스토리) | 출발 시 "아이 동승" 선택 + 목적지 설정 | 도착, 아이 잠듦 선언, 사용자 중지 |
-| 3 | DOCENT (도슨트) | 어른만 탑승, 또는 키즈 모드에서 아이 잠듦 | 도착, 사용자 중지 |
-| - | REST (휴식, 확장) | 정차 + 최근 AWAKE 이력 | 출발(기어 D 또는 주행 시작) |
-| - | IDLE | 위 조건 없음 | - |
+| REQUESTED | 폰에서 "데리러 와줘" | 알림 + 음성, 승인/거절 | "요청 보냄" |
+| SHARING | 차에서 승인 | 상대 위치, ETA | 차 위치, ETA, 약속 색 |
+| WAITING | SHARING 중 기어 P | 대기 모드(화면 어둡게, 공조 절약), 약속 색 앰비언트 | "차 도착, ○○ 불빛 차" |
+| BOARDED | 탑승 판정 | "탑승 확인" 음성, 연출 복구 | 종료 알림 |
+| ENDED | 수동 종료(어느 쪽이든), 앱 종료 | 연출 복구 | - |
+| EXPIRED | 상대 위치 2분 무응답, 세션 60분 초과, 요청 5분 무응답 | 연출 복구 | 만료 알림 |
 
-- 상위 모드가 켜지면 하위 모드는 **일시정지**하고, 상위 모드가 끝나면 이어서 재생한다(동화 2부 이어 듣기).
-- 피로 단계 1(주의)은 모드를 바꾸지 않고, 진행 중인 콘텐츠 사이에 가벼운 대화를 끼워 넣는다.
+- WAITING에서 기어가 P가 아니게 되면 SHARING으로 돌아간다.
+- BOARDED·ENDED·EXPIRED는 종료 상태다. 들어가면 서버의 위치 행을 지운다.
 
-```
-           피로≥2                    피로≤1
-KIDS_STORY ───────► AWAKE ─────────────────► (이전 모드 재개)
-DOCENT     ───────►   │  휴게소 도착
-                      └────────────► REST ──출발──► (이전 모드 재개)
-KIDS_STORY ──아이 잠듦──► DOCENT
-```
+## 3. 탑승 판정
 
-## 2. 컴포넌트
+아래가 모두 맞으면 BOARDED.
 
-```
-[Vehicle/Navi/Location 신호] ─► ContextEngine ─► FatigueScorer
-                                     │                │
-                                     ▼                ▼
-                              ModeOrchestrator (우선순위: 각성 > 키즈 > 도슨트)
-                                     │
-                ┌────────────────────┼────────────────────┐
-                ▼                    ▼                    ▼
-          StoryEngine          AwakeController       DocentEngine
-     (ETA 맞춤 이야기, 분기)   (퀴즈, 휴게소 제안)     (POI 트리거)
-                │                    │                    │
-                └──────────► AmbientDirector ◄────────────┘
-                         (Light/HVAC/Window 연출 큐)
-                                     │
-                               VoiceIO (STT/TTS)
-```
+1. 기어 `GEAR_PARK`
+2. 승객 문(`ROW_1_RIGHT`, `ROW_2_LEFT`, `ROW_2_RIGHT`) 중 하나가 열렸다가(1) 닫힘(0)
+3. 마지막 탑승자 위치와 차 위치가 30m 이내 (GPS 오차를 고려한 초기값)
 
-| 컴포넌트 | 책임 |
-|---|---|
-| ContextEngine | Vehicle·NaviHelper·위치 신호를 구독해 하나의 `DriveContext` 스냅샷으로 합친다 |
-| FatigueScorer | `DriveContext`와 음성 응답 지표로 피로 점수·단계를 계산한다 |
-| ModeOrchestrator | 우선순위 규칙으로 모드를 전환하고, 일시정지·재개를 관리한다 |
-| StoryEngine | 백엔드에 이야기 생성을 요청하고 ETA에 맞춰 분량을 조절한다. 다음 장면을 미리 받아 둔다 |
-| AwakeController | 각성 대화(퀴즈, 끝말잇기), 휴게소 경유지 제안 |
-| DocentEngine | 위치 기반으로 해설 트리거, 경유지 추가 제안 |
-| AmbientDirector | 연출 태그를 Light·HVAC 호출로 바꾼다. capability 확인과 원상 복구를 맡는다 |
-| VoiceIO | TTS·STT 추상화. 지금은 Android 표준 API, Pleos SDK가 열리면 교체 |
-| Backend (별도) | LLM 프록시. API 키 보관, 아동 콘텐츠 필터, 캐싱 |
+- 착석(`SeatOccupancy`)·벨트(`SeatBeltBuckledState`)는 보조 신호로 로그만 남긴다. 에뮬레이터 기본값이 모든 좌석 착석 true라 판정 조건으로 쓰기 어렵다.
+- 판정 직후 "○○ 탑승했나요?"를 묻지 않고 바로 끝낸다. 잘못 끝났으면 폰에서 다시 요청하면 된다.
 
-## 3. 피로 점수
+## 4. 차량 연출
 
-진단이 아니라 휴식 권유다. 최종 판단은 운전자가 한다.
-
-| 신호 | 출처 | 가중 |
+| 연출 | 시점 | API |
 |---|---|---|
-| 연속 주행시간(2시간 이후 급증) | 앱 자체 주행 타이머(주행 시작~정차 구간 누적). `Odometer.getTripCurrentDrivingTime`은 에뮬레이터에서 `ERROR_NOT_SUPPORTED_PROPERTY`라 지원될 때만 보조로 쓴다. 데모는 시나리오 리플레이어로 시간을 주입한다 | 높음 |
-| 시간대(02~06시, 14~16시) | 시스템 시각 | 중간 |
-| 크루즈 장시간 사용(단조 주행) | `DrivingMode.getCruiseControlState` | 중간 |
-| 브레이크 패턴 변화(평소 대비 빈도 급변) | `Brake.registerBrakePedalStatus` | 중간 |
-| 음성 퀴즈 응답 지연·오답 | VoiceIO | 높음 |
+| 약속 색 앰비언트 | WAITING 진입 | `Light.setAmbientLightSwitch(ON)` + `setAmbientLightBrightnessColor(area, argb)` |
+| 공조 절약 | WAITING 진입 | `HVAC.setHvacFanSpeed(area, 낮은 단계)`, 필요 시 설정온도 조정 |
+| 복구 | 종료 상태 진입, WAITING 이탈 | 시작 시 저장한 값으로 되돌림 |
 
-| 단계 | 의미 | 개입 |
-|---|---|---|
-| 0 | 정상 | 없음 |
-| 1 | 주의 | 콘텐츠 사이에 가벼운 대화 |
-| 2 | 경고 | AWAKE 모드 진입, 환경 각성 연출 |
-| 3 | 강한 권유 | 다음 휴게소·졸음쉼터 경유지 추가 제안 |
-
-가중치와 임계값은 에뮬레이터 시나리오로 조정한다. 초기값은 코드 상수로 두고 여기에 기록한다.
-
-## 4. 연출 태그
-
-이야기와 각성 스크립트에 태그를 넣으면 AmbientDirector가 실행한다.
-
-```
-[light:ocean] 부기는 파란 바다로 첨벙 뛰어들었어요. [hvac:cool]
-```
-
-| 태그 | 동작 | API |
-|---|---|---|
-| `light:<preset>` | 앰비언트 색 변경(ocean=#005AFF, forest, sunset, awake=#00FFC8 …) | `Light.setAmbientLightSwitch(ON)` + `setAmbientLightBrightnessColor(area, argb)` |
-| `hvac:warm` / `hvac:cool` | 설정온도 ±2~3°C | `HVAC.setHvacTemperature(area, °C, CELSIUS)` |
-| `hvac:fresh` | 외기 유입 | `HVAC.setHvacRecirculation(area, false)` |
-| `hvac:fan+` | 풍량 증가 | `HVAC.setHvacFanSpeed(area, level)` (범위는 capability로 확인) |
-
-- 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다. 미지원이면 태그를 건너뛰고 음성만 재생한다.
-- **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다. 내기순환 지원 영역은 `[ROW_1_LEFT, ROW_1_RIGHT, ROW_2_LEFT, ROW_2_CENTER, ROW_2_RIGHT]` 하나다.
-- 창문 제어는 쓰지 않는다. 참고로 창문 위치 범위는 0~10(10 = 완전 개방)이다.
-- 모드가 끝나면 연출 전 상태로 복구한다(시작 시 현재 값을 저장).
+- 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다. 미지원이면 연출만 건너뛴다.
+- **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다.
 
 ## 5. Vehicle SDK 매핑
 
@@ -110,35 +64,31 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 
 | 도메인 (getter) | API | 퍼미션 | 용도 |
 |---|---|---|---|
-| Odometer (`getOdometer`) | `getTripCurrentDrivingTime(onComplete: (Int?) )` 분 / `registerTripCurrentDrivingTime(DrivingTimeListener)` | CAR_DRIVE | 피로 점수, 이야기 진행 |
-| Odometer | `getTripCurrentDrivingDistance(onComplete: (Float?))` m | CAR_DRIVE | 진행률 |
-| Brake (`getBrake`) | `getCurrentBrakePedalStatus` / `registerBrakePedalStatus(BrakePedalStatusListener)` | CAR_DRIVE | 브레이크 패턴 |
-| DrivingMode (`getDrivingMode`) | `getCruiseControlState(onComplete: (CruiseControl?))` | CAR_DRIVE | 단조 주행 |
-| HVAC (`getHVAC`) | `getHvacTemperature(area, unit, …)`, `setHvacTemperature(area, Float, TemperatureUnit, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | 연출·각성 |
-| HVAC | `setHvacRecirculation(area, Boolean, …)`, `setHvacFanSpeed(area, Int, …)` | CONTROL_CAR_CLIMATE | 외기 유입, 풍량 |
-| Light (`getLight`) | `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities(onComplete: (CapabilityConfig, List<SeatArea>))` | CAR_LIGHTS + **CONTROL_CAR_LIGHTS** (문서에는 CAR_LIGHTS만 적혀 있지만 set에 제어 퍼미션이 없으면 SecurityException) | 장면 색 |
-| HVAC | `checkHvacRecirculationCapabilities(onComplete: (CapabilityConfig, List<SeatArea>))` | CAR_CLIMATE | 내기순환 지원 영역 |
-| Window (`getWindow`) | (사용 안 함, 스파이크에서만 검증) `setWindowPosition(WindowArea, Int, …)` | CAR_WINDOWS / CONTROL_CAR_WINDOWS | - |
-| Seat, EvBattery | (확장) 휴식 모드 리클라인, 휴식 가능 시간 | CAR_SEATS, CAR_ENERGY | REST 모드 |
+| Gear (`getGear`) | `registerGearSelection(GearSelectionListener)` → `onSelected(VehicleGear?)` | CAR_DRIVE | WAITING, 탑승 판정 |
+| Door (`getDoor`) | `checkDoorPositionCapabilities(onComplete: (Map<DoorArea, AreaBounds<Int>>))`, `getCurrentDoorPosition(DoorArea, (Int?))`, `registerDoorPosition(DoorArea, DoorPositionListener)` → `onPositionUpdated(Int?)` | CAR_DOORS (normal) | 탑승 판정 |
+| Seat (`getSeat`) | `getCurrentSeatOccupancy(SeatArea, (Boolean?))`, `registerSeatOccupancy(SeatArea, SeatOccupancyListener)`, `registerSeatBeltBuckledState(SeatArea, SeatBeltBuckledStateListener)` | CAR_SEATS (normal) | 탑승 보조 신호 |
+| Light (`getLight`) | `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities` | CAR_LIGHTS + **CONTROL_CAR_LIGHTS** (문서에는 CAR_LIGHTS만 적혀 있지만 set에 제어 퍼미션이 없으면 SecurityException) | 약속 색 |
+| HVAC (`getHVAC`) | `getHvacTemperature`, `setHvacTemperature(area, Float, TemperatureUnit, …)`, `setHvacFanSpeed(area, Int, …)`, `setHvacRecirculation(area, Boolean, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | 공조 절약, 복구 |
 
 ### 주요 타입 (import 경로)
 
 | 타입 | 패키지 | 값 |
 |---|---|---|
 | `Vehicle` | `ai.pleos.playground.vehicle` | |
-| `SeatArea(vararg SeatValue)`, `WindowArea(vararg WindowValue)` | `…vehicle.api.model.area` | |
+| `SeatArea`, `DoorArea`, `WindowArea` | `…vehicle.api.model.area` | |
 | `SeatValue` | `…vehicle.constant.area` | ROW_1_LEFT, ROW_1_CENTER, ROW_1_RIGHT, ROW_2_*, ROW_3_* |
-| `WindowValue` | `…vehicle.constant.area` | FRONT_WINDSHIELD, REAR_WINDSHIELD, ROW_1_LEFT/RIGHT, ROW_2_LEFT/RIGHT, ROOF_TOP_1/2 |
-| `TemperatureUnit` | `…vehicle.constant.unit` | CELSIUS, FAHRENHEIT |
+| `DoorValue` | `…vehicle.constant.area` | ROW_1_LEFT/RIGHT, ROW_2_LEFT/RIGHT, ROW_3_LEFT/RIGHT, HOOD, REAR |
+| `VehicleGear` | `…vehicle.constant.control` | GEAR_PARK 등 |
 | `LightSwitch` | `…vehicle.constant.control` | OFF, ON, DAYTIME_RUNNING, AUTOMATIC |
-| `CruiseControl` | `…vehicle.constant.control` | OTHER, ENABLED, ACTIVATED, USER_OVERRIDE, SUSPENDED, FORCED_DEACTIVATION_WARNING |
-| `DrivingTimeListener.onDrivingTimeUpdated(Int?)`, `BrakePedalStatusListener.onBrakePedalStatusUpdated(Boolean?)` | `…vehicle.listener` | 둘 다 `onFailed(Exception)` 포함 |
+| `TemperatureUnit` | `…vehicle.constant.unit` | CELSIUS, FAHRENHEIT |
+| `GearSelectionListener`, `DoorPositionListener`, `SeatOccupancyListener`, `SeatBeltBuckledStateListener` | `…vehicle.listener` | 모두 `onFailed(Exception)` 포함 |
 | `AreaBounds`, `CapabilityConfig` | `…vehicle.api.model.capability` | |
 
 ### 쓸 수 없는 것
 
 - `Safety.getTelltalesInfo` (경고등): `PRIVATE_CAR_SAFETY`, signature|privileged
-- Playground "준비 중": Vehicle Control, FusedLocation, TextToSpeech, SpeechToText. 제어 퍼미션 자체는 normal이라 에뮬레이터에서 동작하는지 스파이크로 확인한다.
+- Playground "준비 중": Vehicle Control, FusedLocation, TextToSpeech, SpeechToText. 제어는 에뮬레이터에서 동작한다(7절).
+- 트립 주행시간·거리: 에뮬레이터에서 `ERROR_NOT_SUPPORTED_PROPERTY`
 
 ## 6. 대체 구현 (SDK 미오픈 대응)
 
@@ -146,30 +96,31 @@ KIDS_STORY ──아이 잠듦──► DOCENT
 |---|---|---|
 | 음성 출력 | `android.speech.tts.TextToSpeech` | TextToSpeech SDK |
 | 음성 인식 | `android.speech.SpeechRecognizer` | SpeechToText SDK |
-| 위치 | `LocationManager` | FusedLocation SDK |
-| 이야기 생성 | 외부 LLM (백엔드 프록시) | 변경 없음 |
+| 차 위치 | `LocationManager` | FusedLocation SDK |
+| 요청 수신 | WebSocket(OkHttp / Supabase Realtime) | 변경 없음 (차에 GMS 없음) |
 
 `VoiceIO`, `LocationSource`를 인터페이스로 두고 구현체만 바꾼다.
 
-## 7. 에뮬레이터 스파이크 결과 (2026-11-03, Pleos Connect Emulator v2.1.0)
+## 7. 에뮬레이터 스파이크 결과 (Pleos Connect Emulator v2.1.0)
 
-| 항목 | 결과 |
-|---|---|
-| 퍼미션 7개(조회 4, 제어 3) | 설치 시 모두 granted |
-| 조회: 브레이크, 크루즈, 설정온도, 창문 위치 | 성공 |
-| 조회·구독: 트립 주행시간·거리 | `ERROR_NOT_SUPPORTED_PROPERTY` |
-| 구독: 브레이크 | 성공. Virtual Console BRAKE 입력 → true/false 콜백 |
-| 제어: 설정온도 18°C/23°C | 성공, Virtual Console에 반영 |
-| 제어: 내기순환 off | 지원 영역으로 호출하면 성공 |
-| 제어: 창문 2/10 | 성공 |
-| 제어: 앰비언트 ON + 색 | CONTROL_CAR_LIGHTS 추가 + 지원 영역으로 호출하면 성공 |
+| 날짜 | 항목 | 결과 |
+|---|---|---|
+| 11/03 | 퍼미션(조회·제어) | 설치 시 모두 granted |
+| 11/03 | 제어: 설정온도, 내기순환 off, 앰비언트 ON + 색 | 성공. 앰비언트는 CONTROL_CAR_LIGHTS 추가 + 지원 영역으로 호출 |
+| 11/03 | 구독: 브레이크 | 성공 |
+| 11/03 | 트립 주행시간·거리 | 미지원 |
+| 11/06 | 외부 통신: HTTPS GET (httpbin.org) | 200 |
+| 11/06 | 외부 통신: WebSocket (echo.websocket.org) | 연결, 송수신 성공 |
+| 11/06 | GMS(구글 서비스) | 없음 → FCM 불가 |
+| 11/06 | 기어 구독 | 등록 즉시 `GEAR_PARK` |
+| 11/06 | 문 위치 | 캐퍼빌리티 6개 영역(승객 문 0~1, HOOD·REAR 0~100). Virtual Console BODY 패널 RR 클릭 → `ROW_2_RIGHT = 1`, 다시 클릭 → `0` |
+| 11/06 | 착석·벨트 조회·구독 | 성공. 기본값은 승객석 착석 true, 벨트 false |
 
-- Vehicle Control SDK가 Playground에서 "준비 중"이어도 에뮬레이터에서는 3rd party 앱의 제어 호출이 동작한다. 실제 마켓 탑재 때 퍼미션 승인 여부는 별개다.
-- Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)로 기어, 브레이크, 크루즈, 공조, 창문, 앰비언트, 배터리를 주입할 수 있다. 트립 주행시간 카드는 없다.
+- Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)의 BODY 패널에서 문 열림·닫힘, 다른 패널에서 기어, 공조, 앰비언트를 주입할 수 있다. 착석(Seat Occupancy) 카드도 있다.
 
 ## 8. 미결 사항
 
-- [x] 에뮬레이터에서 HVAC·Light·Window set이 3rd party 앱으로 동작하는가 → 동작함
-- [x] Virtual Console로 신호를 주입할 수 있는가 → 브레이크·크루즈·기어 가능, 트립 주행시간 불가
-- [ ] AAOS에서 외부 네트워크(LLM 백엔드) 호출 제약
-- [ ] NaviHelper로 ETA 조회·경유지 추가 API 확인
+- [ ] NaviHelper로 임의 좌표까지 ETA 조회·목적지 설정
+- [ ] 실제 마켓에서 외부 통신·백그라운드 WebSocket 유지 정책
+- [ ] 차 앱이 꺼져 있을 때 요청 수신(포그라운드 서비스 허용 여부)
+- [ ] 에뮬레이터 가짜 GPS(`adb emu geo fix`)가 Pleos 에뮬레이터 `LocationManager`에 들어오는지
