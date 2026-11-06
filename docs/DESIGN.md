@@ -7,7 +7,7 @@
 - **양쪽 동의로 시작하고, 어느 쪽이든 끝낼 수 있다.** 탑승자가 요청하고 운전자가 승인해야 위치가 오간다.
 - **위치는 세션 동안만 오간다.** 세션이 끝나면 서버의 위치 행을 지운다. 상시 추적 기능은 만들지 않는다.
 - **종료는 자동이 기본, 수동은 예비다.** 탑승 감지, 무응답 2분, 세션 60분 중 먼저 오는 조건으로 끝낸다.
-- **차량은 신호를 읽기만 하고 제어하지 않는다.** 대기 모드(화면·공조 절약)와 약속 색 앰비언트는 빼기로 했다(2026-11-06).
+- **차량 제어는 실내등 하나만 쓴다.** 정차 중에만 켜고, 끝나면 켜기 전 상태로 되돌린다. 기어·문·좌석은 읽기만 한다. 대기 모드(화면·공조 절약)와 약속 색 앰비언트는 빼기로 했다(2026-11-06).
 - 주행 중에는 조작을 최소화한다. 승인은 음성 또는 큰 버튼 하나.
 
 ## 1. 구성
@@ -26,10 +26,12 @@
 |---|---|---|---|
 | REQUESTED | 폰에서 "데리러 와줘" | 알림 + 음성, 승인/거절 | "요청 보냄" |
 | SHARING | 차에서 승인 | 상대 위치, ETA | 차 위치, ETA |
-| BOARDED | 탑승 판정 | "탑승 확인" 음성 | 종료 알림 |
-| ENDED | 수동 종료(어느 쪽이든), 앱 종료 | - | - |
-| EXPIRED | 상대 위치 2분 무응답, 세션 60분 초과, 요청 5분 무응답 | 만료 알림 | 만료 알림 |
+| NEARBY | SHARING 중 두 위치 50m 이내 + 기어 P | "○○가 가까이 왔어요", 실내등 ON | "실내등 켜진 차가 ○○ 차예요" |
+| BOARDED | 탑승 판정 | "탑승 확인" 음성, 실내등 복구 | 종료 알림 |
+| ENDED | 수동 종료(어느 쪽이든), 앱 종료 | 실내등 복구 | - |
+| EXPIRED | 상대 위치 2분 무응답, 세션 60분 초과, 요청 5분 무응답 | 만료 알림, 실내등 복구 | 만료 알림 |
 
+- NEARBY에서 거리가 70m 넘게 벌어지거나 기어가 P가 아니게 되면 SHARING으로 돌아가고 실내등을 복구한다(50/70m 이중 기준으로 경계에서 깜빡임 방지).
 - BOARDED·ENDED·EXPIRED는 종료 상태다. 들어가면 서버의 위치 행을 지운다.
 
 ## 3. 탑승 판정
@@ -43,17 +45,21 @@
 - 착석(`SeatOccupancy`)·벨트(`SeatBeltBuckledState`)는 보조 신호로 로그만 남긴다. 에뮬레이터 기본값이 모든 좌석 착석 true라 판정 조건으로 쓰기 어렵다.
 - 판정 직후 "○○ 탑승했나요?"를 묻지 않고 바로 끝낸다. 잘못 끝났으면 폰에서 다시 요청하면 된다.
 
-## 4. 차량 제어 (쓰지 않음)
+## 4. 차량 제어: 실내등 차 찾기 (2026-11-06 확정)
 
-대기 모드(화면·공조 절약)와 약속 색 앰비언트는 2026-11-06 빼기로 했다. 나중에 제어를 다시 쓸 때를 위해 검증한 내용만 남긴다.
+- NEARBY 진입 시 `getCabinLightSwitch`로 현재 값을 저장하고 `setCabinLightSwitch(ON)`. 종료 상태나 SHARING 복귀 시 저장한 값으로 되돌린다.
+- `checkCabinLightSwitchCapabilities`가 ON을 주지 않으면 실내등을 건너뛰고 음성·폰 안내만 한다.
+- 비상등은 Light API에 get·set이 모두 없다(Virtual Console에만 Hazard Lights 카드가 있다). 그래서 실내등을 쓴다.
+- 하향등·상향등·안개등·미등 set도 있지만, 정차 중 사람을 향해 켜면 눈부시고 위험해서 쓰지 않는다.
+- 실내등은 낮에는 밖에서 잘 안 보인다. 주 사용 장면(저녁~밤 하원)에 맞춘 기능이다.
+
+### 쓰지 않는 제어 (검증 기록)
+
+대기 모드(화면·공조 절약)와 약속 색 앰비언트는 빼기로 했다. 나중을 위해 검증 내용만 남긴다.
 
 - 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다.
 - **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다.
 - 앰비언트 set에는 `CONTROL_CAR_LIGHTS`가 필요하다(문서에는 CAR_LIGHTS만 적혀 있지만 없으면 SecurityException).
-- **차 찾기 신호 후보(11/06 검토, 미확정)**:
-  - 비상등은 Light API에 get·set이 모두 없다. Virtual Console에만 Hazard Lights 카드가 있다.
-  - 실내등은 `Light.setCabinLightSwitch(LightSwitch, onComplete: (LightSwitch?), onFailed)`(CONTROL_CAR_LIGHTS)로 켜고 끌 수 있다. 조회는 `getCabinLightSwitch`, `getCurrentCabinLightState`, 지원 값은 `checkCabinLightSwitchCapabilities` → `[OFF, ON]`.
-  - 외부 등 중에서는 하향등·상향등·안개등·미등 set이 있다. 하지만 정차 중 사람을 향해 켜는 건 눈부심과 안전 문제가 있어 쓰지 않는다.
 
 ## 5. Vehicle SDK 매핑
 
@@ -66,6 +72,7 @@
 | Gear (`getGear`) | `registerGearSelection(GearSelectionListener)` → `onSelected(VehicleGear?)` | CAR_DRIVE | 탑승 판정 |
 | Door (`getDoor`) | `checkDoorPositionCapabilities(onComplete: (Map<DoorArea, AreaBounds<Int>>))`, `getCurrentDoorPosition(DoorArea, (Int?))`, `registerDoorPosition(DoorArea, DoorPositionListener)` → `onPositionUpdated(Int?)` | CAR_DOORS (normal) | 탑승 판정 |
 | Seat (`getSeat`) | `getCurrentSeatOccupancy(SeatArea, (Boolean?))`, `registerSeatOccupancy(SeatArea, SeatOccupancyListener)`, `registerSeatBeltBuckledState(SeatArea, SeatBeltBuckledStateListener)` | CAR_SEATS (normal) | 탑승 보조 신호 |
+| Light (`getLight`) | `checkCabinLightSwitchCapabilities(onComplete: (List<LightSwitch>))`, `getCabinLightSwitch(onComplete: (LightSwitch?))`, `setCabinLightSwitch(LightSwitch, onComplete: (LightSwitch?), onFailed)` | CAR_LIGHTS / CONTROL_CAR_LIGHTS | 실내등 차 찾기 |
 | Light (`getLight`) | (검증만, 사용 안 함) `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities` | CAR_LIGHTS + CONTROL_CAR_LIGHTS | - |
 | HVAC (`getHVAC`) | (검증만, 사용 안 함) `getHvacTemperature`, `setHvacTemperature(area, Float, TemperatureUnit, …)`, `setHvacFanSpeed(area, Int, …)`, `setHvacRecirculation(area, Boolean, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | - |
 
