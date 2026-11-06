@@ -50,6 +50,10 @@
 - 모든 제어 전에 `checkXxxCapabilities`로 지원 여부와 범위를 확인한다.
 - **영역은 캐퍼빌리티가 돌려준 값을 그대로 쓴다.** 앰비언트 라이트와 내기순환은 좌석별이 아니라 차량 전체 영역이라 `SeatArea(ROW_1_LEFT)`로 호출하면 `area ID: 0x1 not supported`가 난다.
 - 앰비언트 set에는 `CONTROL_CAR_LIGHTS`가 필요하다(문서에는 CAR_LIGHTS만 적혀 있지만 없으면 SecurityException).
+- **차 찾기 신호 후보(11/06 검토, 미확정)**:
+  - 비상등은 Light API에 get·set이 모두 없다. Virtual Console에만 Hazard Lights 카드가 있다.
+  - 실내등은 `Light.setCabinLightSwitch(LightSwitch, onComplete: (LightSwitch?), onFailed)`(CONTROL_CAR_LIGHTS)로 켜고 끌 수 있다. 조회는 `getCabinLightSwitch`, `getCurrentCabinLightState`, 지원 값은 `checkCabinLightSwitchCapabilities` → `[OFF, ON]`.
+  - 외부 등 중에서는 하향등·상향등·안개등·미등 set이 있다. 하지만 정차 중 사람을 향해 켜는 건 눈부심과 안전 문제가 있어 쓰지 않는다.
 
 ## 5. Vehicle SDK 매핑
 
@@ -110,6 +114,8 @@
 | 11/06 | 기어 구독 | 등록 즉시 `GEAR_PARK` |
 | 11/06 | 문 위치 | 캐퍼빌리티 6개 영역(승객 문 0~1, HOOD·REAR 0~100). Virtual Console BODY 패널 RR 클릭 → `ROW_2_RIGHT = 1`, 다시 클릭 → `0` |
 | 11/06 | 착석·벨트 조회·구독 | 성공. 기본값은 승객석 착석 true, 벨트 false |
+| 11/06 | 실내등 켜기·끄기 | 성공. set 후 `getCabinLightSwitch`, `getCurrentCabinLightState` 조회값도 ON/OFF로 바뀜 |
+| 11/06 | 비상등 | SDK에 API 없음 |
 
 - Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)의 BODY 패널에서 문 열림·닫힘, 다른 패널에서 기어, 공조, 앰비언트를 주입할 수 있다. 착석(Seat Occupancy) 카드도 있다.
 

@@ -81,6 +81,8 @@ class VehicleSpikeActivity : Activity() {
             addView(button("5. 캐퍼빌리티 확인") { capabilities() })
             addView(button("6. 외부 통신 (HTTPS, WebSocket)") { network() })
             addView(button("7. 탑승 감지 구독 (기어, 문, 착석, 벨트)") { boarding() })
+            addView(button("8. 실내등 켜기") { cabinLight(LightSwitch.ON) })
+            addView(button("9. 실내등 끄기") { cabinLight(LightSwitch.OFF) })
             addView(button("로그 지우기") { logView.text = "" })
             addView(ScrollView(context).apply { addView(logView) })
         }
@@ -253,6 +255,24 @@ class VehicleSpikeActivity : Activity() {
     private fun doorListener(area: DoorArea) = object : DoorPositionListener {
         override fun onPositionUpdated(pos: Int?) = log("[구독] 문 ${area.values.toList()} = $pos")
         override fun onFailed(e: Exception) = log("[구독] 문 실패: $e")
+    }
+
+    /** 마중: 탑승자가 가까워지면 실내등을 켜서 밖에서 차를 찾게 한다. 비상등은 SDK에 API가 없다 */
+    private fun cabinLight(value: LightSwitch) {
+        val light = vehicle.getLight()
+        light.checkCabinLightSwitchCapabilities(
+            onComplete = { switches: List<LightSwitch> -> log("실내등 지원 스위치 = $switches") },
+            onFailed = { log("실내등 캐퍼빌리티 실패: $it") },
+        )
+        light.setCabinLightSwitch(
+            value,
+            onComplete = {
+                log("실내등 → $it")
+                light.getCabinLightSwitch(onComplete = { s -> log("실내등 스위치 조회 = $s") }, onFailed = { e -> log("실내등 스위치 조회 실패: $e") })
+                light.getCurrentCabinLightState(onComplete = { s -> log("실내등 상태 조회 = $s") }, onFailed = { e -> log("실내등 상태 조회 실패: $e") })
+            },
+            onFailed = { log("실내등 제어 실패: $it") },
+        )
     }
 
     private fun capabilities() {
