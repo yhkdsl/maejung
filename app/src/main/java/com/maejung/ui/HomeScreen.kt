@@ -1,5 +1,6 @@
 package com.maejung.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maejung.net.ConnectionState
@@ -38,7 +40,7 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize().padding(48.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Text("마중", fontSize = 56.sp, style = MaterialTheme.typography.headlineLarge)
+        MaejungLogo()
         Text(state.connection.label(), fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             if (state.family.isEmpty()) "연결된 가족이 없어요" else "연결된 가족: ${state.family.joinToString { it.riderName }}",
@@ -48,8 +50,15 @@ fun HomeScreen(
             state.pairedName != null -> Text("${state.pairedName.toSubject()} 연결됐어요", fontSize = 48.sp, color = MaterialTheme.colorScheme.primary)
             state.pairingCode != null -> {
                 Text("폰의 마중 앱에 이 코드를 입력하세요 (10분 동안 유효)", fontSize = 28.sp)
-                Text(state.pairingCode.code.chunked(3).joinToString(" "), fontSize = 96.sp, color = MaterialTheme.colorScheme.primary)
-                OutlinedButton(onClick = onPairingClose, modifier = Modifier.fillMaxWidth().height(120.dp)) {
+                Text(
+                    state.pairingCode.code.chunked(3).joinToString(" "),
+                    fontSize = 96.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CarShapes.Panel)
+                        .padding(horizontal = 48.dp, vertical = 16.dp),
+                )
+                OutlinedButton(onClick = onPairingClose, modifier = Modifier.fillMaxWidth().height(120.dp), shape = CarShapes.Button) {
                     Text("닫기", fontSize = 32.sp)
                 }
             }
@@ -59,6 +68,7 @@ fun HomeScreen(
                     onClick = onPairClick,
                     enabled = state.connection == ConnectionState.CONNECTED && onFakeRequest == null,
                     modifier = Modifier.fillMaxWidth().height(160.dp),
+                    shape = CarShapes.Button,
                 ) {
                     Text("가족 연결", fontSize = 36.sp)
                 }
@@ -66,7 +76,7 @@ fun HomeScreen(
         }
         // 가짜 서버로 돌 때만 보이는 디버그 버튼(A4)
         if (onFakeRequest != null) {
-            OutlinedButton(onClick = onFakeRequest, modifier = Modifier.fillMaxWidth().height(120.dp)) {
+            OutlinedButton(onClick = onFakeRequest, modifier = Modifier.fillMaxWidth().height(120.dp), shape = CarShapes.Button) {
                 Text("가짜 요청 받기 (디버그)", fontSize = 32.sp)
             }
         }

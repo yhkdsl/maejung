@@ -23,7 +23,7 @@ import org.osmdroid.views.overlay.Polygon
 data class MapPoint(val lat: Double, val lng: Double)
 
 /**
- * 공유 화면 지도(OpenStreetMap, osmdroid). 탑승자는 파란 동그라미, 차는 흰 테두리 검은 동그라미,
+ * 공유 화면 지도(OpenStreetMap, osmdroid). 탑승자는 하늘색 동그라미, 차는 흰 테두리 남색 동그라미,
  * 차 주변 50m(실내등 켜지는 거리)는 옅은 원으로 그리고, 둘이 다 보이게 확대·이동한다.
  *
  * OSM 타일 정책을 지킨다: 앱 식별 User-Agent, 화면에 보이는 타일만 받기(미리 받기 없음), 출처 표시(CopyrightOverlay).
@@ -33,12 +33,13 @@ data class MapPoint(val lat: Double, val lng: Double)
 fun PickupMap(car: MapPoint?, rider: MapPoint?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val map = remember { createMap(context) }
-    val riderMarker = remember { dotMarker(map, Color.rgb(33, 150, 243), 44, "아이") }
-    val carMarker = remember { dotMarker(map, Color.rgb(20, 20, 20), 52, "차") }
+    // 폰 앱 지도와 같은 색: 탑승자 하늘색(#00AAD2), 차 남색(#002C5F)
+    val riderMarker = remember { dotMarker(map, Color.rgb(0, 170, 210), 44, "아이") }
+    val carMarker = remember { dotMarker(map, Color.rgb(0, 44, 95), 52, "차") }
     val nearbyCircle = remember {
         Polygon(map).apply {
-            fillPaint.color = Color.argb(40, 33, 150, 243)
-            outlinePaint.color = Color.argb(120, 33, 150, 243)
+            fillPaint.color = Color.argb(40, 0, 170, 210)
+            outlinePaint.color = Color.argb(140, 0, 170, 210)
             outlinePaint.strokeWidth = 3f
         }
     }

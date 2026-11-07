@@ -1,22 +1,24 @@
 package com.maejung.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maejung.eta.Eta
@@ -34,14 +36,21 @@ fun RequestScreen(riderName: String, onAccept: () -> Unit, onReject: () -> Unit)
         modifier = Modifier.fillMaxSize().padding(48.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
-        Text("${riderName.toSubject()} 데리러 와 달래요", fontSize = 48.sp)
-        Text("수락하면 위치를 공유하고, 멀리 있으면 길안내를 시작해요", fontSize = 28.sp)
+        MaejungLogo()
+        Text("${riderName.toSubject()} 데리러 와 달래요", fontSize = 48.sp, fontWeight = FontWeight.Bold)
+        Text("수락하면 위치를 공유하고, 멀리 있으면 길안내를 시작해요", fontSize = 32.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            OutlinedButton(onClick = onReject, modifier = Modifier.weight(1f).height(180.dp)) {
-                Text("거절", fontSize = 40.sp)
+            OutlinedButton(
+                onClick = onReject,
+                modifier = Modifier.weight(1f).height(180.dp),
+                shape = CarShapes.Button,
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+            ) {
+                Text("거절", fontSize = 40.sp, color = MaterialTheme.colorScheme.onSurface)
             }
-            Button(onClick = onAccept, modifier = Modifier.weight(1f).height(180.dp)) {
-                Text("수락", fontSize = 40.sp)
+            Button(onClick = onAccept, modifier = Modifier.weight(1f).height(180.dp), shape = CarShapes.Button) {
+                Text("수락", fontSize = 40.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -88,28 +97,43 @@ private fun SharingInfo(
         Text(
             if (nearby) "${riderName.toSubject()} 가까이 왔어요" else "${riderName.toWith()} 위치 공유 중",
             fontSize = 48.sp,
+            fontWeight = FontWeight.Bold,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            Text(distanceM?.let { "${it.toInt()}m" } ?: "거리 확인 중", fontSize = 96.sp)
+        // 폰 앱 지도 아래 안내 칸(거리·방향·도착예상)과 같은 구성
+        Row(
+            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, CarShapes.Panel)
+                .padding(horizontal = 32.dp, vertical = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+        ) {
+            Stat("거리", distanceM?.let { "${it.toInt()}m" } ?: "확인 중", big = true)
             // 정차 중에는 차 방향을 알 수 없어 화살표 대신 방위(북동쪽 등)로 보여준다
             // 아주 가까우면 방위가 의미 없어 숨긴다
-            if (bearing != null && (distanceM ?: 0.0) >= 5.0) {
-                Text(compassName(bearing), fontSize = 48.sp, modifier = Modifier.padding(top = 32.dp))
-            }
+            if (bearing != null && (distanceM ?: 0.0) >= 5.0) Stat("방향", compassName(bearing))
         }
         eta?.let {
             val label = if (it.source == EtaSources.NAVI) "길안내 기준" else "예상"
             val text = if (it.seconds < 30) "곧 도착 ($label)" else "도착까지 약 ${(it.seconds + 59) / 60}분 ($label)"
-            Text(text, fontSize = 36.sp)
+            Text(text, fontSize = 36.sp, color = MaterialTheme.colorScheme.primary)
         }
-        if (lightOn) Text("실내등을 켰어요", fontSize = 32.sp, color = MaterialTheme.colorScheme.primary)
-        Button(
+        if (lightOn) Text("실내등을 켰어요", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+        Spacer(Modifier.weight(1f))
+        OutlinedButton(
             onClick = onEnd,
             modifier = Modifier.fillMaxWidth().height(160.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+            shape = CarShapes.Button,
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
         ) {
-            Text("공유 끝내기", fontSize = 36.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+            Text("공유 끝내기", fontSize = 36.sp, color = MaterialTheme.colorScheme.onSurface)
         }
+    }
+}
+
+@Composable
+private fun Stat(label: String, value: String, big: Boolean = false) {
+    Column {
+        Text(label, fontSize = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, fontSize = if (big) 88.sp else 48.sp, fontWeight = FontWeight.Bold,
+            modifier = if (big) Modifier else Modifier.padding(top = 28.dp))
     }
 }
 
@@ -131,7 +155,8 @@ fun EndedScreen(reason: String) {
         EndReasons.MAX_DURATION -> "1시간이 지나 위치공유를 끝냈어요"
         else -> "위치공유를 끝냈어요"
     }
-    Column(modifier = Modifier.fillMaxSize().padding(48.dp)) {
-        Text(text, fontSize = 48.sp)
+    Column(modifier = Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
+        MaejungLogo()
+        Text(text, fontSize = 48.sp, fontWeight = FontWeight.Bold)
     }
 }

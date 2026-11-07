@@ -17,6 +17,7 @@
 - 나침반의 12시는 이동 방향(course)이며, 차 방위에서 course를 뺀 상대각으로 화살표를 표시한다. 샘플은 차 방위 80°·course 35° → 오른쪽 앞 45°다. 지도 북쪽·휴대폰 방향과 별개이며 실제 GPS course 수집은 P4다.
 - course가 없으면 `—`를 표시하고 나침반 화살표·지도 위 이동 방향 표시를 숨긴다. 정지 시 course 유효성 판정은 P4에 남아 있다. 위치 정보 없음 예시는 차·아이 마커까지 모두 숨기고 거리·나침반·ETA를 `—`로 표시한다.
 - 실내등 켜짐 예시에서는 지도 아래에 "실내등 켜진 차를 찾아주세요" 안내를 둔다.
+- 차 앱도 같은 색·픽셀 로고를 쓴다(11/07, `app/.../ui/CarTheme.kt`). 주행 화면이라 어두운 남색 배경에 진주색 글자, 주 색은 하늘색, 실내등 안내는 호박색이며 지도 마커는 폰과 같이 차 남색·탑승자 하늘색이다. 상세는 CAR_APP.md 4절.
 - 로컬 참고: [HTML 시안](../.omc/design/phone-relative-compass-20261107/index.html), [시안 설명](../.omc/design/phone-relative-compass-20261107/brief.md), [가까이 화면](../.omc/design/phone-relative-compass-20261107/exports/nearby.png).
 - 위 자료는 Git에서 무시되는 `.omc` 시안 산출물이며 제품용 자산이 아니다.
 

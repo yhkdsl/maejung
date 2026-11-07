@@ -7,13 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.maejung.service.CarSessionService
 import com.maejung.session.Phase
+import com.maejung.ui.CarTheme
 import com.maejung.ui.CarViewModel
 import com.maejung.ui.EndedScreen
 import com.maejung.ui.HomeScreen
@@ -43,8 +42,8 @@ class MainActivity : ComponentActivity() {
         CarSessionService.start(this)
 
         setContent {
-            // 주행 중 화면이라 다크 배경을 기본으로 한다
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            // 주행 중 화면이라 어두운 배경을 쓴다. 색은 폰 앱과 같은 마중 브랜드 색(CarTheme)
+            CarTheme {
                 Surface {
                     val session by viewModel.session.collectAsStateWithLifecycle()
                     val connection by viewModel.connection.collectAsStateWithLifecycle()
