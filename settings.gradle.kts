@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 rootProject.name = "maejung"
 include(":app")
 include(":protocol")
+include(":phone")
