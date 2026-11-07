@@ -65,7 +65,8 @@ fun PickupMap(car: MapPoint?, rider: MapPoint?, modifier: Modifier = Modifier) {
                 riderMarker.position = GeoPoint(it.lat, it.lng)
                 map.overlays.add(riderMarker)
             }
-            frame(map, listOfNotNull(car, rider))
+            // 두 위치가 같으면 범위 크기가 0이라 세계 지도로 축소되므로 한 점으로 본다
+            frame(map, listOfNotNull(car, rider).distinct())
             map.invalidate()
         },
     )
@@ -103,7 +104,10 @@ private fun dotMarker(map: MapView, color: Int, sizePx: Int, title: String) = Ma
 private fun frame(map: MapView, points: List<MapPoint>) {
     when (points.size) {
         0 -> Unit
-        1 -> map.controller.setCenter(GeoPoint(points[0].lat, points[0].lng))
+        1 -> {
+            map.controller.setCenter(GeoPoint(points[0].lat, points[0].lng))
+            map.controller.setZoom(18.0)
+        }
         else -> map.post {
             val box = BoundingBox.fromGeoPoints(points.map { GeoPoint(it.lat, it.lng) })
             // 두 점이 아주 가까우면 너무 확대되지 않게 최소 범위를 둔다
