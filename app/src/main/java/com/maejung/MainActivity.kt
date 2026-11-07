@@ -18,6 +18,7 @@ import com.maejung.ui.CarViewModel
 import com.maejung.ui.EndedScreen
 import com.maejung.ui.HomeScreen
 import com.maejung.ui.HomeUiState
+import com.maejung.ui.MapPoint
 import com.maejung.ui.RequestScreen
 import com.maejung.ui.SharingScreen
 import com.maejung.vehicle.CabinSwitch
@@ -53,6 +54,10 @@ class MainActivity : ComponentActivity() {
                     val pairedName by viewModel.pairedNotice.collectAsStateWithLifecycle()
                     val eta by viewModel.eta.collectAsStateWithLifecycle()
                     val bearing by viewModel.bearing.collectAsStateWithLifecycle()
+                    val carFix by viewModel.carFix.collectAsStateWithLifecycle()
+                    val peerFix by viewModel.peerFix.collectAsStateWithLifecycle()
+                    val car = carFix?.let { MapPoint(it.lat, it.lng) }
+                    val rider = peerFix?.let { MapPoint(it.lat, it.lng) }
                     when (val phase = session.phase) {
                         Phase.Idle -> HomeScreen(
                             state = HomeUiState(connection, family, pairingCode, pairingFailed, pairedName),
@@ -66,6 +71,8 @@ class MainActivity : ComponentActivity() {
                             session.distanceM,
                             bearing,
                             eta,
+                            car,
+                            rider,
                             nearby = false,
                             lightOn = false,
                             onEnd = viewModel::end,
@@ -75,6 +82,8 @@ class MainActivity : ComponentActivity() {
                             session.distanceM,
                             bearing,
                             eta,
+                            car,
+                            rider,
                             nearby = true,
                             lightOn = session.lightInfo?.supportsOn == true && session.lightBefore != CabinSwitch.ON,
                             onEnd = viewModel::end,

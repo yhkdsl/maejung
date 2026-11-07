@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.maejung.MaejungApp
 import com.maejung.eta.Eta
+import com.maejung.location.Fix
+import com.maejung.protocol.PeerLocation
 import com.maejung.net.ConnectionState
 import com.maejung.protocol.PairingCodeIssued
 import com.maejung.session.CarSession
@@ -34,6 +36,8 @@ class CarViewModel(application: Application) : AndroidViewModel(application) {
     val pairedNotice: StateFlow<String?> = manager.pairedNotice
     val eta: StateFlow<Eta?> = manager.eta
     val bearing: StateFlow<Float?> = manager.bearing
+    val carFix: StateFlow<Fix?> = manager.carFix
+    val peerFix: StateFlow<PeerLocation?> = manager.peerFix
     val isFake: Boolean = app.fakeTransport != null
 
     private val _pairingCode = MutableStateFlow<PairingCodeIssued?>(null)

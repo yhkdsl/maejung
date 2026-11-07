@@ -1,8 +1,10 @@
 package com.maejung.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,6 +16,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maejung.eta.Eta
@@ -50,12 +53,36 @@ fun SharingScreen(
     distanceM: Double?,
     bearing: Float?,
     eta: Eta?,
+    car: MapPoint?,
+    rider: MapPoint?,
     nearby: Boolean,
     lightOn: Boolean,
     onEnd: () -> Unit,
 ) {
+    // 왼쪽은 지도(아이·차 위치), 오른쪽은 큰 글씨 안내와 버튼 하나
+    Row(modifier = Modifier.fillMaxSize()) {
+        // MapView는 자기 영역 밖까지 그려서 오른쪽 글자를 덮는다. 영역 안으로 자르고 오른쪽은 배경을 칠한다
+        PickupMap(car = car, rider = rider, modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds())
+        SharingInfo(
+            riderName, distanceM, bearing, eta, nearby, lightOn, onEnd,
+            Modifier.weight(1f).background(MaterialTheme.colorScheme.surface),
+        )
+    }
+}
+
+@Composable
+private fun SharingInfo(
+    riderName: String,
+    distanceM: Double?,
+    bearing: Float?,
+    eta: Eta?,
+    nearby: Boolean,
+    lightOn: Boolean,
+    onEnd: () -> Unit,
+    modifier: Modifier,
+) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(48.dp),
+        modifier = modifier.fillMaxHeight().padding(40.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         Text(
@@ -65,12 +92,15 @@ fun SharingScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             Text(distanceM?.let { "${it.toInt()}m" } ?: "거리 확인 중", fontSize = 96.sp)
             // 정차 중에는 차 방향을 알 수 없어 화살표 대신 방위(북동쪽 등)로 보여준다
-            bearing?.let { Text(compassName(it), fontSize = 48.sp, modifier = Modifier.padding(top = 32.dp)) }
+            // 아주 가까우면 방위가 의미 없어 숨긴다
+            if (bearing != null && (distanceM ?: 0.0) >= 5.0) {
+                Text(compassName(bearing), fontSize = 48.sp, modifier = Modifier.padding(top = 32.dp))
+            }
         }
         eta?.let {
-            val minutes = (it.seconds + 59) / 60
             val label = if (it.source == EtaSources.NAVI) "길안내 기준" else "예상"
-            Text("도착까지 약 ${minutes}분 ($label)", fontSize = 36.sp)
+            val text = if (it.seconds < 30) "곧 도착 ($label)" else "도착까지 약 ${(it.seconds + 59) / 60}분 ($label)"
+            Text(text, fontSize = 36.sp)
         }
         if (lightOn) Text("실내등을 켰어요", fontSize = 32.sp, color = MaterialTheme.colorScheme.primary)
         Button(

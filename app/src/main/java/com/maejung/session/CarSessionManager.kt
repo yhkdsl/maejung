@@ -71,6 +71,10 @@ class CarSessionManager(
     private val _bearing = MutableStateFlow<Float?>(null)
     val bearing: StateFlow<Float?> = _bearing.asStateFlow()
 
+    /** 공유 중 탑승자 마지막 위치. 지도에 동그라미로 그린다 */
+    private val _peerFix = MutableStateFlow<PeerLocation?>(null)
+    val peerFix: StateFlow<PeerLocation?> = _peerFix.asStateFlow()
+
     private var peer: PeerLocation? = null
     private var sharingJob: Job? = null
     private var endedJob: Job? = null
@@ -173,6 +177,7 @@ class CarSessionManager(
         }
         if (message is PeerLocation) {
             peer = message
+            _peerFix.value = message
             updateBearing()
             events.send(CarEvent.Distance(distance()))
         }
@@ -225,6 +230,7 @@ class CarSessionManager(
     private fun startSharing() {
         sharingJob?.cancel()
         peer = null
+        _peerFix.value = null
         sharingJob = scope.launch {
             events.send(CarEvent.CabinLight(vehicle.readCabinLight()))
             var lastEta: Eta? = null
@@ -252,6 +258,7 @@ class CarSessionManager(
         peer = null
         _eta.value = null
         _bearing.value = null
+        _peerFix.value = null
     }
 
     /** 차에서 본 탑승자 방향(북쪽 기준 시계방향 각도). 공유 화면의 화살표 */

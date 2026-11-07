@@ -68,6 +68,8 @@ dependencies {
     // 차량에 GMS가 없어 FCM 대신 WebSocket으로 요청을 받는다
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // 공유 화면 지도. 차에는 GMS가 없어 구글 지도를 못 쓰고, 내장 내비 지도는 SDK로 그릴 수 없다(docs/CAR_APP.md 4절)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
     implementation(platform("androidx.compose:compose-bom:2025.05.01"))
     implementation("androidx.compose.ui:ui")
