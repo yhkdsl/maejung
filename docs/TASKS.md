@@ -25,13 +25,13 @@
 
 ## 1. 서버 (`server/`)
 
-- [ ] **S1. 프로젝트 생성** — SERVER.md 2~5절대로 독립 Gradle 프로젝트, wrapper 8.12, Dockerfile(Eventoday와 같은 2단계), `application.yml`(포트·비밀키 기본값), `server/.gitignore`(build/, .gradle/).
+- [x] **S1. 프로젝트 생성** — SERVER.md 2~5절대로 독립 Gradle 프로젝트, wrapper 8.12, Dockerfile(Eventoday와 같은 2단계), `application.yml`(포트·비밀키 기본값), `server/.gitignore`(build/, .gradle/).
   - 완료 기준: `cd server && ./gradlew test` 성공, `./gradlew bootRun` 후 `curl localhost:8080/health` → `{"status":"ok"}`.
-- [ ] **S2. 토큰·REST** — TokenService, PairingCodeStore, `/api/vehicles`, `/api/pairing-codes`, `/api/pairings`, 오류 형식(PROTOCOL.md 2절).
+- [x] **S2. 토큰·REST** — TokenService, PairingCodeStore, `/api/vehicles`, `/api/pairing-codes`, `/api/pairings`, 오류 형식(PROTOCOL.md 2절).
   - 완료 기준: `TokenServiceTest`, `PairingCodeStoreTest` 통과. curl로 등록 → 코드 → 페어링 성공, 토큰 없이 코드 발급 시 `401 INVALID_TOKEN`.
-- [ ] **S3. WebSocket과 세션** — ConnectionRegistry, MaejungWebSocketHandler, SessionService, SessionSweeper.
+- [x] **S3. WebSocket과 세션** — ConnectionRegistry, MaejungWebSocketHandler, SessionService, SessionSweeper.
   - 완료 기준: SERVER.md 6절의 `SessionServiceTest`, `WebSocketFlowTest`(①~⑤) 통과.
-- [ ] **S4. 배포 준비** — 루트 README의 서버 절에 Railway 설정 방법(Root Directory `server`, 환경변수 `MAEJUNG_TOKEN_SECRET`, 헬스체크 `/health`).
+- [x] **S4. 배포 준비** — 루트 README의 서버 절에 Railway 설정 방법(Root Directory `server`, 환경변수 `SPRING_PROFILES_ACTIVE=railway`·`MAEJUNG_TOKEN_SECRET`, 헬스체크 `/health`). 11/07 로컬 `docker build`는 Docker Hub 이미지 메타데이터 조회에서 멈춰 확인하지 못했다(네트워크 문제로 보임). `bootJar`는 jar 하나만 만드는 것을 확인했고 Dockerfile은 Eventoday와 같다. Railway 첫 배포에서 확인한다.
   - 완료 기준: `docker build -t maejung-server server` 성공(Docker가 없으면 사용자에게 알리고 건너뛴다).
 - [ ] **S5. Railway 배포** — 담당: **사용자**. 서비스 생성, 환경변수 입력, 배포 URL을 알려 준다. 에이전트는 받은 URL을 `local.properties`의 `maejung.serverUrl`에 넣는 방법만 안내한다.
 

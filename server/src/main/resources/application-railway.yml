@@ -1,0 +1,3 @@
+maejung:
+  # 기본값을 두지 않는다. MAEJUNG_TOKEN_SECRET이 빠지면 기동이 실패한다
+  token-secret: ${MAEJUNG_TOKEN_SECRET}

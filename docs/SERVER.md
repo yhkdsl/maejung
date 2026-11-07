@@ -64,20 +64,22 @@ server/src/main/kotlin/com/maejung/server/
 │   ├── HealthController.kt          GET /health
 │   └── ApiExceptionHandler.kt       {code, message} 오류 응답
 ├── pairing/
-│   └── PairingCodeStore.kt          6자리 코드 → vehicleId, 10분 만료, 1회용 (ConcurrentHashMap)
+│   └── PairingCodeStore.kt          6자리 코드 → vehicleId, 10분 만료, 1회용 (@Synchronized HashMap)
 ├── ws/
 │   ├── MaejungWebSocketHandler.kt   TextWebSocketHandler. afterConnectionEstablished에서 토큰 검증(실패 시 close 4401) → 등록 → session.state 전송. 메시지 파싱 → SessionService 호출
-│   ├── ConnectionRegistry.kt        principal(vehicleId 또는 riderId) → WebSocketSession, 중복 연결 4409
-│   └── Messages.kt                  Envelope(type, sessionId, ts, payload) + payload data class
+│   ├── TokenQueryInterceptor.kt     쿼리의 token을 세션 속성으로 옮기기만 한다(거절하지 않음)
+│   ├── ConnectionRegistry.kt        Outbox 구현. principal key(vehicleId 또는 riderId) → WebSocketSession, 중복 연결 4409
+│   └── Envelope.kt                  Envelope(type, sessionId, ts, payload: Map). payload는 type별 data class 없이 Map으로 다룬다
 └── session/
-    ├── PickupSession.kt             id, vehicleId, riderId, riderName, state, createdAt, 마지막 위치·수신 시각
+    ├── Outbox.kt                    send(principalKey, envelope), isOnline(key). SessionService가 WebSocket을 모르게 하려는 경계(테스트는 가짜 구현)
+    ├── PickupSession.kt             id, vehicleId, riderId, riderName, state, createdAt, acceptedAt, 마지막 위치 수신 시각(차·탑승자)
     ├── SessionService.kt            상태 전이, 중계, 종료 처리 (PROTOCOL.md 4절)
     └── SessionSweeper.kt            @Scheduled(fixedDelay = 5초) 만료 검사
 ```
 
 ## 5. 구현 규칙
 
-- **동시성**: 세션은 `ConcurrentHashMap<sessionId, PickupSession>`, 인덱스 `vehicleId → sessionId`, `riderId → sessionId`. 상태 전이는 세션 객체 단위 `synchronized`.
+- **동시성**: 세션은 `HashMap<sessionId, PickupSession>`, 인덱스 `vehicleId → sessionId`, `riderId → sessionId`. `SessionService`의 공개 메서드(`onConnected`, `handle`, `sweep`) 전체를 `@Synchronized` 하나로 묶는다. 1차는 서버 한 대·소규모라 단순함을 택했다. 규모가 커지면 세션 단위 락이나 Redis로 바꾼다.
 - **WebSocket 송신**: Spring `WebSocketSession.sendMessage`는 스레드 안전하지 않다. `ConcurrentWebSocketSessionDecorator(session, 5000, 64 * 1024)`로 감싸서 등록한다.
 - **시간**: `Clock`을 주입받아 쓴다. `System.currentTimeMillis()`를 직접 부르지 않는다(만료 테스트를 위해).
 - **로그**: type, sessionId, principal 종류만 남긴다. 좌표·이름은 로그에 남기지 않는다.
@@ -87,7 +89,8 @@ server/src/main/kotlin/com/maejung/server/
 - **탑승자 이름**: 토큰에 없다. `pickup.request` payload의 `riderName`을 세션에 담아 `pickup.requested`·`session.state`에 쓴다.
 - **세션 인덱스로 찾기**: 클라이언트 메시지의 `sessionId`는 무시하고 `vehicleId → sessionId`, `riderId → sessionId` 인덱스로 찾는다(PROTOCOL.md 3절).
 - **요청 처리 순서**: `pickup.request` → 차 연결이 없으면 `error VEHICLE_OFFLINE`(세션 안 만듦) → 차나 탑승자에 진행 중 세션이 있으면 `error SESSION_ALREADY_ACTIVE` → 세션 생성 → 차에 `pickup.requested`, 폰에 `pickup.pending`.
-- **위치 저장**: 세션별로 차·탑승자 각각 마지막 위치와 수신 시각만 둔다. 이력은 남기지 않는다.
+- **위치 저장**: **좌표는 저장하지 않고 중계만 한다.** 만료 판단에 필요한 차·탑승자 각각의 마지막 위치 수신 시각만 세션에 둔다.
+- **SHARING이 아닐 때** 오는 `location.update`·`eta.update`·`vehicle.light`는 오류 없이 버린다. `pickup.accept`·`pickup.reject`·`session.boarded`가 상태에 맞지 않으면 `INVALID_STATE`, 진행 중 세션이 없으면 `SESSION_NOT_FOUND`.
 
 ## 6. 테스트 (완료 기준)
 

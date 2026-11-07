@@ -82,7 +82,7 @@ maejung/
 ## 현재 상태
 
 - `app/src/main/java/com/maejung/spike/VehicleSpikeActivity.kt`: SDK 스파이크. 조회·구독·제어, 외부 통신(HTTPS, WebSocket), 탑승 신호(기어, 문, 착석, 벨트), 실내등 확인 완료(docs/DESIGN.md 7절). 각성·바다 연출과 창문 제어 버튼은 이전 컨셉 검증 기록이다.
-- 앱 본체, 서버, 폰 앱은 아직 없다. 다음 작업은 docs/TASKS.md 0절(확인 작업)과 1절(서버)부터.
+- 서버(`server/`)는 11/07 S1~S3 완료(테스트 34개 통과). 차 앱 본체와 폰 앱은 아직 없다. 다음 작업은 docs/TASKS.md의 M1·A1부터.
 - 사용자는 2026-11-03 채팅으로 42dot SDK 라이선스에 동의했고, Pleos Connect Emulator 이미지가 설치되어 있다.
 
 ## 에뮬레이터 실행

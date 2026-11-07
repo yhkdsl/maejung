@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: maejung-server
+
+server:
+  port: ${PORT:8080}
+
+maejung:
+  # 로컬 bootRun과 테스트용 기본값. 배포(railway 프로필)에서는 기본값 없이 환경변수가 필수다
+  token-secret: ${MAEJUNG_TOKEN_SECRET:local-dev-secret-do-not-use-in-prod-0123456789}
