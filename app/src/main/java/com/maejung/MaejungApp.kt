@@ -1,7 +1,9 @@
 package com.maejung
 
 import android.app.Application
+import com.maejung.alert.PickupNotifications
 import com.maejung.location.AndroidLocationSource
+import com.maejung.navi.PickupNavigator
 import com.maejung.net.ApiClient
 import com.maejung.net.FakeSessionTransport
 import com.maejung.net.WebSocketTransport
@@ -38,6 +40,8 @@ class MaejungApp : Application() {
             voice = PleosVoiceIO(this),
             prefs = Prefs(this),
             api = if (fake == null) ApiClient(BuildConfig.SERVER_URL) else null,
+            alerts = PickupNotifications(this),
+            navigator = PickupNavigator(this),
         )
         sessionManager.start()
     }

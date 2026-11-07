@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.maejung.service.CarSessionService
 import com.maejung.session.Phase
 import com.maejung.ui.CarViewModel
 import com.maejung.ui.EndedScreen
@@ -26,13 +27,19 @@ class MainActivity : ComponentActivity() {
 
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         viewModel.restartLocation()
+        CarSessionService.start(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val needed = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.RECORD_AUDIO)
-            .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        val needed = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ).filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) permissions.launch(needed.toTypedArray())
+        // 화면이 보일 때 시작해야 한다(Android 14는 앱이 뒤에 있을 때 포그라운드 서비스 시작을 막는다)
+        CarSessionService.start(this)
 
         setContent {
             // 주행 중 화면이라 다크 배경을 기본으로 한다

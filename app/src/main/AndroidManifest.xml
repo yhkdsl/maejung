@@ -19,6 +19,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 마중: 다른 앱 위에 뜨는 픽업 요청 알림 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 마중: 화면 뒤에서도 요청 수신·위치 전송·탑승 감지 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- 에뮬레이터에 안드로이드 기본 TTS 엔진이 없어 Pleos TTS(ON_DEVICE)를 쓴다 -->
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
     <!-- 마중: 탑승자 위치까지 경로·도착 예정 시간 -->
@@ -61,5 +65,14 @@
         <receiver
             android:name=".spike.PickupAlertReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".alert.PickupAlertReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".service.CarSessionService"
+            android:exported="false"
+            android:foregroundServiceType="location|microphone" />
     </application>
 </manifest>

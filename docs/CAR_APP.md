@@ -70,7 +70,7 @@ app/src/main/java/com/maejung/
 │   ├── PickupNotifications.kt    요청 알림(수락·거절 버튼, 헤드업), 상태 알림(버튼 없음: "가까이 왔어요", "탑승 확인")
 │   └── PickupAlertReceiver.kt    알림 버튼 → CarSessionManager에 UserAccept·UserReject
 ├── service/
-│   └── CarSessionService.kt      포그라운드 서비스. 세션 진행 중(Requested~Nearby) 앱이 화면 뒤에 있어도 위치 전송·탑승 감지가 멈추지 않게 한다
+│   └── CarSessionService.kt      포그라운드 서비스(타입 location|microphone). 앱이 켜져 있는 동안 늘 띄운다("마중이 요청을 기다리고 있어요"). 요청은 언제 올지 몰라 세션 중에만 띄우면 화면 뒤에서 요청을 못 받을 수 있고, Android 14는 앱이 뒤에 있을 때 포그라운드 서비스 시작을 막기 때문이다. 화면이 보이는 MainActivity에서 시작한다. microphone 타입이 없으면 앱이 뒤에 있을 때 음성 인식이 오류 9(권한 부족)로 실패한다
 ├── store/
 │   └── Prefs.kt                  vehicleId, vehicleToken, 연결된 가족 목록(riderId, riderName)
 └── ui/
@@ -86,6 +86,7 @@ app/src/main/java/com/maejung/
   - 채널 중요도 `IMPORTANCE_HIGH`, 카테고리 `CATEGORY_MESSAGE`. `CATEGORY_CALL`로 하면 AAOS가 전화 수신처럼 초록·빨강 아이콘 버튼으로 바꿔 그려서 "수락/거절" 글자가 사라진다.
   - 헤드업은 6~8초 뒤 알림 센터로 들어간다. 그래서 요청은 알림과 동시에 음성으로 묻고 음성 답을 기다린다. 알림 센터에 남은 알림의 버튼도 계속 동작한다.
   - 새 요청을 띄우기 전에 같은 id의 알림을 `cancel`한다. 알림 센터에 이전 알림이 남아 있으면 갱신만 되고 헤드업으로 다시 뜨지 않는다.
+  - **버튼 순서**: AAOS 헤드업은 액션을 거꾸로 그리고 마지막 것을 강조(검정)한다. 알림 센터는 순서대로 그린다. 운전자는 주로 헤드업을 보므로 `addAction(수락)` → `addAction(거절)` 순으로 넣어 헤드업에서 "거절 | **수락**"이 되게 한다(알림 센터에서는 "수락 | **거절**"이 된다).
   - 퍼미션 `POST_NOTIFICATIONS`(런타임, 33 이상).
 - 연결과 세션은 **Application 범위의 `CarSessionManager`가 소유**한다. 화면 회전·Activity 재생성에 끊기지 않게 하기 위해서다. ViewModel은 구독과 사용자 입력 전달만 한다.
 - `spike/VehicleSpikeActivity.kt`는 검증 기록으로 남긴다. 런처는 `MainActivity`로 옮겼다. 스파이크는 런처에서 빼되 adb로 열 수 있게 `exported=true`로 둔다(`adb shell am start -n com.maejung/.spike.VehicleSpikeActivity`). `exported=false`면 셸에서도 열 수 없다.

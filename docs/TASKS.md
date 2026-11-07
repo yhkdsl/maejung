@@ -83,7 +83,7 @@
   - 완료 기준: 로컬 서버에 붙어 코드 발급. 서버를 껐다 켜면 재연결 후 `session.state none`을 받아 진행 중 세션이 Ended(peer_lost)로 정리되고 실내등이 복구됨.
 - [ ] **A6. 음성** — `PleosVoiceIO`(말하기는 Pleos TTS ON_DEVICE, 듣기는 SpeechRecognizer). 스파이크 `pleosTts()` 참고.
   - 완료 기준: 요청 시 TTS 안내가 나옴. STT가 되면 "응"으로 승인됨.
-- [ ] **A8. 알림·길안내·백그라운드** — `PickupNotifications`(스파이크 `spike/PickupAlert.kt` 참고), `PickupAlertReceiver`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙).
+- [x] **A8. 알림·길안내·백그라운드** — `PickupNotifications`(스파이크 `spike/PickupAlert.kt` 참고), `PickupAlertReceiver`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙). 11/07 완료(음성 승인 제외): 내비가 앞에 있는 상태에서 헤드업 요청 알림 → 수락(헤드업·알림 센터 둘 다) → 내비를 띄운 채로 위치 공유·34m 근접 안내·실내등·탑승 감지까지 동작. 차를 1,099m 떨어뜨리면 수락 직후 길안내 시작, 차에서 "공유 끝내기"하면 길안내 취소. **음성 승인은 미확인**: 인식 결과·오류 로그가 남지 않아 실제 발화로 확인해야 한다.
   - 완료 기준: 내비 화면이 앞에 있을 때 요청이 오면 헤드업 알림이 뜨고 수락·거절이 동작. 차와 탑승자가 500m 이상이면 수락 후 길안내가 시작되고, 탑승 감지·수동 종료 시 길안내가 취소됨. 마중 앱이 화면 뒤에 있어도 위치 전송과 탑승 감지가 계속됨.
   - 음성 승인 테스트는 실제 발화가 필요하다. 에뮬레이터에서 PC 마이크를 켜고 사용자에게 "응"이라고 말해 달라고 요청한다.
 - [ ] **A7. 위치·ETA** — `AndroidLocationSource`(C1 결과 반영, 안 되면 `FixedLocationSource`), heartbeat 전송(PROTOCOL.md 3.2), `EtaCalculator`(N1 결과 반영), `eta.update` 전송 규칙.

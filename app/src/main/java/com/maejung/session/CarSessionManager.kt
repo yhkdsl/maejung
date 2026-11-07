@@ -2,7 +2,9 @@ package com.maejung.session
 
 import android.location.Location
 import android.util.Log
+import com.maejung.alert.PickupAlerts
 import com.maejung.location.Fix
+import com.maejung.navi.Navigator
 import com.maejung.location.LocationSource
 import com.maejung.net.ApiClient
 import com.maejung.net.ConnectionState
@@ -40,6 +42,8 @@ class CarSessionManager(
     private val prefs: Prefs,
     /** null이면 가짜 서버로 돈다(등록·연결 코드 없음) */
     private val api: ApiClient?,
+    private val alerts: PickupAlerts,
+    private val navigator: Navigator,
 ) {
     private val events = Channel<CarEvent>(Channel.UNLIMITED)
     private val _session = MutableStateFlow(CarSession(lightBefore = prefs.lightBefore))
@@ -168,12 +172,25 @@ class CarSessionManager(
             is CarEffect.SetCabinLight -> vehicle.setCabinLight(effect.value)
             is CarEffect.SaveLightBefore -> prefs.lightBefore = effect.value
             is CarEffect.Speak -> voice.speak(effect.text)
-            CarEffect.Listen -> Unit // 음성 인식은 A6·A8에서 붙인다
+            CarEffect.Listen -> listenForAnswer()
             CarEffect.StartLocationSharing -> startSharing()
             CarEffect.StopLocationSharing -> stopSharing()
-            // 헤드업 알림·길안내는 A8에서 붙인다. 지금은 화면(RequestScreen·SharingScreen)과 로그로만 보인다
-            is CarEffect.ShowRequestAlert, CarEffect.DismissRequestAlert, is CarEffect.Notify,
-            is CarEffect.StartNavigation, CarEffect.StopNavigation -> Unit
+            is CarEffect.ShowRequestAlert -> alerts.showRequest(effect.riderName)
+            CarEffect.DismissRequestAlert -> alerts.dismissRequest()
+            is CarEffect.Notify -> alerts.notify(effect.text)
+            is CarEffect.StartNavigation -> navigator.start(effect.lat, effect.lng, effect.riderName)
+            CarEffect.StopNavigation -> navigator.stop()
+        }
+    }
+
+    /** 요청 음성 뒤에 한 번 듣고 "응/아니"면 수락·거절한다. 그사이 버튼으로 답했으면 머신이 무시한다 */
+    private fun listenForAnswer() {
+        scope.launch {
+            when (VoiceAnswers.parse(voice.listen())) {
+                VoiceAnswer.ACCEPT -> events.send(CarEvent.UserAccept)
+                VoiceAnswer.REJECT -> events.send(CarEvent.UserReject)
+                null -> Unit
+            }
         }
     }
 
