@@ -56,20 +56,26 @@ fun PhoneApp(
     onReturnHome: () -> Unit,
     onBack: () -> Unit,
     onSelectPreview: (PreviewScene) -> Unit,
+    onReturnToLive: (() -> Unit)? = null,
 ) {
     val previewEnabled = BuildConfig.DEBUG && state.previewEnabled
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     var confirmEnd by rememberSaveable(state.scene.name) { mutableStateOf(false) }
     val focus = LocalFocusManager.current
 
-    BackHandler(enabled = previewEnabled && state.scene != PreviewScene.INITIAL && !menuOpen && !confirmEnd) {
-        if (state.scene.isActive) confirmEnd = true else onBack()
+    BackHandler(enabled = previewEnabled && (state.scene != PreviewScene.INITIAL || onReturnToLive != null) && !menuOpen && !confirmEnd) {
+        when {
+            state.scene.isActive -> confirmEnd = true
+            state.scene == PreviewScene.INITIAL -> onReturnToLive?.invoke()
+            else -> onBack()
+        }
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize().safeDrawingPadding().imePadding(),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
+            Column {
             Surface(color = MaterialTheme.colorScheme.background) {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     val gutter = if (maxWidth < 360.dp) 22.dp else 28.dp
@@ -100,6 +106,13 @@ fun PhoneApp(
                         }
                     }
                 }
+            }
+            if (previewEnabled && onReturnToLive != null) {
+                TextButton(onClick = { menuOpen = false; confirmEnd = false; onReturnToLive() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text("실제 연결 화면으로")
+                }
+            }
             }
         },
     ) { padding ->

@@ -81,7 +81,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun FamilyCarIdentity(status: String) {
+internal fun FamilyCarIdentity(status: String) {
     Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(Modifier.fillMaxWidth().padding(vertical = 18.dp), verticalAlignment = Alignment.CenterVertically,
@@ -99,7 +99,7 @@ private fun FamilyCarIdentity(status: String) {
     }
 }
 
-private fun endedMessage(reason: String?): String = when (reason) {
+internal fun endedMessage(reason: String?): String = when (reason) {
     EndReasons.BOARDED -> "탑승 확인! 위치공유를 끝냈어요"
     EndReasons.REJECTED -> "엄마가 지금은 못 온대요"
     EndReasons.MANUAL -> "위치공유를 끝냈어요"

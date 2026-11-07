@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -47,13 +48,21 @@ android {
 }
 
 gradle.taskGraph.whenReady {
-    if (allTasks.any { it.project == project && it.name.contains("Release") } && releaseServerUrl.isNullOrBlank()) {
-        throw GradleException("release 빌드에는 maejung.serverUrl(local.properties 또는 -P)이 필요합니다")
+    if (allTasks.any { it.project == project && it.name.contains("Release") }) {
+        if (releaseServerUrl.isNullOrBlank()) {
+            throw GradleException("release 빌드에는 maejung.serverUrl(local.properties 또는 -P)이 필요합니다")
+        }
+        val url = runCatching { URI(releaseServerUrl) }.getOrNull()
+        if (url == null || url.scheme != "https" || url.host.isNullOrBlank() ||
+            url.rawUserInfo != null || url.rawQuery != null || url.rawFragment != null) {
+            throw GradleException("release maejung.serverUrl은 사용자 정보·쿼리·fragment 없는 HTTPS 서버 주소여야 합니다")
+        }
     }
 }
 
 dependencies {
     implementation(project(":protocol"))
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation(platform("androidx.compose:compose-bom:2025.05.01"))
     implementation("androidx.compose.ui:ui")
@@ -63,6 +72,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
     implementation("androidx.core:core-ktx:1.16.0")
     testImplementation(kotlin("test"))
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }
 
 tasks.withType<Test> {

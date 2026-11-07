@@ -4,7 +4,7 @@
 
 변경 순서는 **`PROTOCOL.md` → `protocol/` 모듈 → `server/` → 차 앱 `app/` → 폰 앱 `phone/`** 이다. P3에서도 기존 계약을 우선 사용하고, 메시지 변경·추가가 필요하면 같은 순서를 따른다. 현재 폰 작업에서는 `app/`·`server/` 코드를 수정하지 않으며, 해당 코드 변경이 필요하면 사용자에게 필요한 변경과 영향을 먼저 알린다.
 
-**구현 상태(2026-11-07, 기존 HEAD `74821e3`와 작업 중인 P2 변경)**: 서버·공유 `protocol` 모듈·차 앱은 구현돼 있다. 탑승자용 `phone/`은 P2 디버그 오프라인 UI 구현·debug/폰 AVD 검증을 완료했으며, 이 문서의 폰 방향 메시지는 서버가 제공하는 계약이다. 실제 폰 REST·WebSocket·토큰 보관·재연결은 P3, GPS·위치 서비스는 P4 미구현이다. [PHONE_APP.md](PHONE_APP.md)에서 P2 미리보기와 미래 연동 설계를 분리한다. 실제 통신의 탑승자 대역은 `scripts/fake-rider.mjs`다.
+**구현 상태(2026-11-07, P2 커밋 `05805ba` 이후 P3 구현·검증 완료)**: 서버·공유 `protocol` 모듈·차 앱은 구현돼 있다. 폰 P3는 이 문서의 기존 계약으로 REST·WebSocket·토큰/이름 보관·재연결·상태 동기화를 구현했으며 새 메시지 형식은 추가하지 않았다. 폰 debug 조립·자동 테스트와 로컬 서버·차/폰 에뮬레이터의 실제 페어링·요청·수락·종료·거절·복원·4401/4409·미리보기 분리를 검증했다. P2 오프라인 미리보기와 이전 통과 이력은 실제 연결과 분리하며, GPS·위치 서비스·실제 지도는 P4다. 검증 근거와 제외 범위는 [PHONE_APP.md 7절](PHONE_APP.md#7-p3-검증-결과)에 있다. `scripts/fake-rider.mjs`는 별도 개발용 대역이며 폰 앱 검증을 대신하지 않는다.
 
 - 전송: HTTPS(REST) + WebSocket(텍스트 프레임, JSON). STOMP는 쓰지 않는다.
 - 인코딩: UTF-8 JSON. 필드 이름은 camelCase.
@@ -19,7 +19,7 @@
 | 토큰 | 발급 | 페이로드 | 보관 |
 |---|---|---|---|
 | vehicleToken | `POST /api/vehicles` | `{"k":"v","vid":"v_…"}` | 차 앱 SharedPreferences |
-| riderToken | `POST /api/pairings` | `{"k":"r","vid":"v_…","rid":"r_…"}` | 현재 대역 스크립트 실행 메모리. 폰 SharedPreferences 보관은 미구현 설계 |
+| riderToken | `POST /api/pairings` | `{"k":"r","vid":"v_…","rid":"r_…"}` | 폰 SharedPreferences. 별도 대역 스크립트는 실행 메모리에만 보관 |
 
 - 형식: `base64url(payloadJson) + "." + base64url(HMAC-SHA256(secret, payloadJson))`. 비밀키는 서버 설정 `maejung.token-secret`(환경변수 `MAEJUNG_TOKEN_SECRET`).
 - 토큰에 이름 같은 개인정보를 넣지 않는다(WebSocket 주소의 쿼리로 가서 프록시 로그에 남을 수 있다). 탑승자 이름은 요청 클라이언트가 `pickup.request`에 실어 보낸다.
@@ -71,10 +71,10 @@
 { "riderId": "r_91c2aa0b7e31", "vehicleId": "v_7f3a1b2c4d5e", "riderToken": "…" }
 ```
 
-오류: `404 PAIRING_CODE_NOT_FOUND`(코드 누락·null·불일치·만료·이미 사용), `400 INVALID_RIDER_NAME`(이름 누락·null 또는 `trim()` 후 Kotlin `String.length`가 1~20이 아님). 길이는 UTF-16 코드 단위로 세며 내부 공백은 유지한다. 이름을 먼저 검사하므로 이름과 코드가 모두 잘못되면 `INVALID_RIDER_NAME`이다. P2 폰 입력도 같은 이름 규칙과 ASCII 숫자(`0`~`9`) 정확히 6자리 코드를 검사하는 범위이며, 서버로 보내거나 코드의 유효성을 확인하지 않는다.
+오류: `404 PAIRING_CODE_NOT_FOUND`(코드 누락·null·불일치·만료·이미 사용), `400 INVALID_RIDER_NAME`(이름 누락·null 또는 `trim()` 후 Kotlin `String.length`가 1~20이 아님). 길이는 UTF-16 코드 단위로 세며 내부 공백은 유지한다. 이름을 먼저 검사하므로 이름과 코드가 모두 잘못되면 `INVALID_RIDER_NAME`이다. 폰은 같은 이름 규칙과 ASCII 숫자(`0`~`9`) 정확히 6자리 코드를 먼저 검사한 뒤 P3 실제 연결에서 REST로 유효성을 확인한다. P2 미리보기는 로컬 형식 검사만 수행한다.
 
 - 차가 WebSocket에 붙어 있으면 `pairing.completed`를 보낸다(3.3). 차가 오프라인이어도 페어링 REST는 성공하며, 이 알림을 나중에 재전송하거나 가족 목록을 조회하는 API는 없다.
-- 이름은 토큰에 넣지 않는다. 요청자는 `pickup.request`마다 `riderName`을 보낸다. 서버는 이를 다시 trim·검사하고 세션에 담는다. 폰 앱의 이름 영구 보관은 아직 구현하지 않았다.
+- 이름은 토큰에 넣지 않는다. 요청자는 `pickup.request`마다 `riderName`을 보낸다. 서버는 이를 다시 trim·검사하고 세션에 담는다. 폰 P3는 페어링 자격과 함께 이름을 SharedPreferences에 보관한다.
 
 ### `GET /health`
 
@@ -91,7 +91,7 @@
   - **4401이면 해당 토큰으로 자동 재연결하지 않는다.** transport는 `UNAUTHORIZED`를 내보내고, manager가 차 토큰·로컬 가족 목록을 지운 뒤 새 차 등록을 시도해 새 토큰으로 연결한다. 가족 연결은 다시 해야 한다.
   - 4401은 비밀키 변경뿐 아니라 토큰 누락·손상·서명 오류에도 발생한다. 키를 바꿨다고 이미 연결된 소켓을 즉시 끊는 기능은 없으며 다음 연결 검증 때 적용된다.
   - **4409면 `REPLACED`가 되고 자동 재연결하지 않는다.** 같은 principal의 새 연결이 이전 연결을 대체한 것이며 같은 기기인지는 서버가 구분하지 않는다.
-- 폰의 토큰 삭제·연결 화면 전환·재연결 정책은 미구현 설계다. 대역 스크립트는 토큰을 영구 저장하거나 재연결하지 않고 소켓이 닫히면 종료한다.
+- 폰 P3도 ping 15초·일반 실패 시 1·2·4·8·최대 15초 재시도 정책을 사용한다. 4401이면 보관한 페어링 자격을 삭제하고 Unpaired로 돌아가며, 4409이면 자격을 보존하고 자동 재연결을 멈춰 명시적인 "다시 연결"을 기다린다. 연결 뒤 첫 `session.state`로 동기화하기 전에는 새 요청을 허용하지 않는다. 상세 상태 전이는 PHONE_APP.md 4절이며 최종 실행 결과는 같은 문서 7절에서 구분한다. 대역 스크립트는 자격을 영구 저장하거나 재연결하지 않고 소켓이 닫히면 종료한다.
 - WebSocket 연결 해제 자체가 세션을 즉시 끝내지는 않는다. 서버는 연결 레지스트리만 비우고 세션은 4절 만료 규칙으로 정리한다.
 - 메시지 공통 형식:
 
@@ -152,7 +152,7 @@
 
 ### 3.5 WebSocket 오류 코드와 검증 범위
 
-아래 오류 코드는 서버 구현이다. "폰 처리"는 [PHONE_APP.md](PHONE_APP.md)의 미구현 설계이며, 대역 스크립트는 모든 `error`에서 소켓을 닫는다.
+아래 오류 코드는 서버와 클라이언트가 따라야 하는 계약이다. 폰 P3의 상태 처리는 [PHONE_APP.md](PHONE_APP.md) 4절을 참고하며, 실행 검증과 구분한다. 대역 스크립트는 모든 `error`에서 소켓을 닫는다.
 
 | code | 의미 | 받는 쪽 처리 |
 |---|---|---|
@@ -209,4 +209,4 @@ pickup.request ─► REQUESTED ─pickup.accept─► SHARING ─session.boarde
   - Idle에서 `requested`를 받으면 요청 화면 상태를 복원한다. 새 `pickup.requested` 때의 헤드업 알림·TTS·STT 효과는 다시 실행하지 않는다.
   - Idle에서 `sharing`을 받으면 Sharing과 위치 전송을 시작한다. Requested에서 받으면 요청 알림도 닫는다.
   - 이미 Sharing·Nearby이면 `sharing` 메시지만으로 상태를 재설정하지 않는다. Idle에서 복원한 Sharing은 이후 위치·기어 이벤트로 Nearby 여부를 판단한다.
-- 서버 재시작 후에는 세션을 복구하지 않으므로 같은 토큰으로 재연결해도 `none`이다. 폰 앱의 상태 동기화는 미구현 설계다.
+- 서버 재시작 후에는 세션을 복구하지 않으므로 같은 토큰으로 재연결해도 `none`이다. 폰 P3는 초기 스냅샷에서 `requested`·`sharing`을 복원하고, 활성 상태에서 `none`을 받으면 Ended(peer_lost)로 정리한 뒤 3초 후 Idle로 돌아간다. 이전 위치·ETA·실내등을 서버가 재전송하는 것으로 간주하지 않는다.

@@ -50,9 +50,13 @@ fun PairScreen(
     onCodeChange: (String) -> Unit,
     onPreview: () -> Unit,
     modifier: Modifier = Modifier,
+    live: Boolean = false,
+    pairingInProgress: Boolean = false,
+    connectionError: String? = null,
 ) {
     val focus = LocalFocusManager.current
-    val submit = { focus.clearFocus(); onPreview() }
+    val enabled = if (live) !pairingInProgress else state.previewEnabled
+    val submit = { focus.clearFocus(); if (enabled) onPreview() }
     PhonePage(modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -92,7 +96,7 @@ fun PairScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("차량 연결 코드", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     PairCodeField(state.code, onCodeChange, state.codeError != null,
-                        onDone = { if (state.previewEnabled) submit() else focus.clearFocus() })
+                        onDone = { if (enabled) submit() else focus.clearFocus() })
                     Text(if (state.codeError != null) "코드는 0–9 숫자 6자리로 입력해 주세요."
                         else "차 화면의 숫자 6자리 · 맨 앞의 0도 입력해요",
                         style = MaterialTheme.typography.bodySmall,
@@ -102,11 +106,19 @@ fun PairScreen(
         }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             PrimaryAction(
-                label = if (state.previewEnabled) "입력 확인 후 홈 미리보기" else "연결 서비스 준비 중",
+                label = when {
+                    live && pairingInProgress -> "연결 중…"
+                    live -> "연결하기"
+                    state.previewEnabled -> "입력 확인 후 홈 미리보기"
+                    else -> "연결 서비스 준비 중"
+                },
                 onClick = submit,
-                enabled = state.previewEnabled,
+                enabled = enabled,
             )
-            Text(if (state.previewEnabled) "입력과 화면 이동만 확인해요. 실제 차와 연결되지 않아요."
+            if (live && connectionError != null) Text(connectionError,
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            Text(if (live) "차 화면에서 발급받은 코드로 우리 차와 연결해요."
+                else if (state.previewEnabled) "입력과 화면 이동만 확인해요. 실제 차와 연결되지 않아요."
                 else "실제 연결 서비스 준비 중이에요. 연결하거나 요청을 보낼 수 없어요.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

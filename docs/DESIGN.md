@@ -2,13 +2,13 @@
 
 기획 원본(시나리오, 사업성, 개인정보 원칙)은 Obsidian `01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 마중 기획서 초안.md`에 있다. 이 문서는 코드와 같이 바뀌는 설계만 다룬다.
 
-**구현 기준: 2026-11-07, 기존 HEAD `74821e339a95ab99f4a233813f8919452a66d27a`와 작업 중인 P2 변경.** 현재 소스가 사실 기준이다. 기본 차 앱(`MainActivity` → `CarSessionManager`)과 과거 `spike/VehicleSpikeActivity` 기록을 구분한다. `phone/` 모듈·기존 P2 오프라인 UI의 debug/폰 AVD 검증 이력이 있으며, 승인된 네이티브 Compose UI 재설계의 빌드·테스트·lint·네이티브 QA와 독립 소스·시각 검토도 통과했다(메인 제공 근거, 8절). 실제 폰 통신(P3)과 위치 수집·서비스(P4)는 미구현 설계다. 외부 SDK·마켓·타일 이용 규정은 이번 갱신에서 재검증하지 않았다.
+**구현 기준: 2026-11-07, P2 커밋 `05805ba`와 후속 차 앱 변경 이후 P3 구현·검증 완료.** 현재 구현 현황과 검증 이력을 구분하며, 통신 계약은 [PROTOCOL.md](PROTOCOL.md)를 따른다. 기본 차 앱(`MainActivity` → `CarSessionManager`)과 과거 `spike/VehicleSpikeActivity` 기록도 구분한다. P2 네이티브 Compose UI의 빌드·테스트·lint·폰 AVD·독립 검토 통과는 이전 이력이다(8절). P3의 실제 폰 통신·상태 복원·연결 예외·미리보기 격리를 로컬 서버·차/폰 에뮬레이터에서 검증했다. GPS·위치 서비스·실제 지도는 P4 미구현 설계다. release APK 런타임·API 26 설치/런타임과 외부 SDK·마켓·타일 이용 규정은 이번 검증에 포함하지 않는다.
 
 ## 폰 UI 확정 시안 (2026-11-07, 네이티브 UI 구현 완료)
 
-- **사용자 디자인 승인·네이티브 Compose 적용·UI 검증 완료.** 지도는 `SharingMap.kt`의 오프라인 로컬 도식이다. 실제 서버(P3)·GPS(P4)·지도 타일 연동은 미구현이다. 검증은 debug 로컬 예시 UI 범위이며 API 26 런타임은 미검증이다.
+- **P2 사용자 디자인 승인·네이티브 Compose 적용·UI 검증 완료 이력.** `SharingMap.kt`의 로컬 도식과 샘플 좌표는 debug 미리보기에 유지한다. 기본 진입인 P3 실제 화면에는 지도 준비 안내와 실제 수신 정보만 표시한다. GPS·지도 타일은 P4다. 아래 예시 지도·나침반의 기존 검증은 로컬 미리보기 범위이며 P3 실행 결과나 API 26 런타임 검증이 아니다.
 - 딥 네이비 `#002C5F`·펄 `#F7F8FA`·시안 `#00AAD2`를 기본 색으로 사용한다.
-- 픽셀 마크·"마중" 브랜드와 작은 오프라인 배지를 상단에 두고 우측 세 점 버튼으로 미리보기 메뉴를 연다. 홈에는 네이티브 은색 차량 일러스트를 표시한다.
+- 픽셀 마크·"마중" 브랜드와 네이티브 은색 차량 일러스트를 사용한다. P3 상단은 실제 연결 상태를 표시하며 debug에서만 별도 미리보기 진입을 제공한다. 미리보기 안의 작은 오프라인 배지·장면 메뉴·행동은 실제 연결과 분리한다.
 - 연결 코드는 포커스 중 단일 편집기로 표시하고, 포커스가 없고 6자리 이하 ASCII 숫자이면 여섯 칸으로 표시한다. 잘못된 원문은 단일 편집기에 그대로 보이며 자르거나 필터링하지 않는다.
 - 지도는 북쪽을 위로 고정하고, 아이의 내 위치와 정차한 엄마 차를 각각 마커로 표시한다. 근접 예시에서도 차의 지도 좌표는 고정하고 아이가 가까워진 확대 화면을 그린다.
 - 지도 하단의 작은 HUD에 거리·‘이동 기준’ 나침반·도착예상 시간을 모은다. 공유는 120m·약 2분, 근접은 20m·약 30초인 로컬 예시다.
@@ -32,24 +32,25 @@
 ## 1. 구성
 
 ```
-[폰 앱: P2 오프라인 UI] ──HTTPS/WebSocket(P3 예정)──► [마중 서버: Spring Boot, 메모리 세션] ◄──WebSocket── [차 앱 (Pleos)]
- 요청, 내 위치                  연결 코드, 세션, 위치 중계, 종료 시 삭제     승인, 차 위치, ETA, 실내등, 탑승 판정
+[폰 앱: P3 실제 연결] ──HTTPS/WebSocket──► [마중 서버: Spring Boot, 메모리 세션] ◄──WebSocket── [차 앱 (Pleos)]
+ 요청·종료, 내 위치는 P4                    연결 코드, 세션, 위치 중계, 종료 시 삭제     승인, 차 위치, ETA, 실내등, 탑승 판정
 ```
 
 - 차에는 GMS가 없어 FCM을 못 쓴다. 차 앱은 서버 WebSocket에 붙어 요청을 받는다.
-- 저장소 구성은 `app/`·`phone/`·`protocol/`과 별도 Gradle 프로젝트 `server/`다. 폰은 일반 Android 앱으로 P2 로컬 미리보기 범위다. FusedLocationProvider·실제 서버 연결은 [PHONE_APP.md](PHONE_APP.md)의 P3/P4 설계이며 현재 구현이 아니다. P2에는 인터넷·GPS 권한이 없다.
+- 저장소 구성은 `app/`·`phone/`·`protocol/`과 별도 Gradle 프로젝트 `server/`다. 일반 Android 폰 앱의 P3 실제 연결은 `MaejungPhoneApp` → `PhoneSessionManager`가 Application 범위에서 소유하고 Activity가 구독한다. 토큰·이름은 SharedPreferences, 세션은 서버의 첫 `session.state`로 복원한다. P3 권한은 `INTERNET`이며 FusedLocationProvider·위치 권한·위치 서비스·osmdroid는 [PHONE_APP.md](PHONE_APP.md) 5절의 P4 범위다.
+- P2 미리보기는 debug에서 명시적으로 선택한다. 저장된 장면이 있어도 앱 시작은 실제 화면이며, 실제 페어링·요청·공유 중에는 미리보기로 숨길 수 없다. 미리보기 콜백은 실제 세션 메시지를 보내지 않는다. release는 미리보기 없이 실제 연결을 사용하며 APK 런타임은 미검증이다.
 - 차 앱에는 OSM 지도(osmdroid `6.1.20`), Pleos ON_DEVICE TTS/STT, LocationManager GPS, NaviHelper 길안내·ETA가 구현돼 있다. 지도(A9)는 구현 완료, 음성(A6)은 구현 완료·실제 발화 검증 대기로 구분한다. 차 위치를 Pleos FusedLocation으로 자동 교체하는 로직은 없다.
 - 서버 Docker 설정은 작성됐지만 Docker Hub timeout으로 이미지 빌드 성공을 확인하지 못했다(S4 빌드 검증 대기). Railway 배포(S5)는 미진행이다.
 - 상세: 통신 [PROTOCOL.md](PROTOCOL.md), 서버 [SERVER.md](SERVER.md), 차 앱 [CAR_APP.md](CAR_APP.md), 폰 앱 [PHONE_APP.md](PHONE_APP.md).
 
 ## 2. 세션 흐름 (개요)
 
-차 앱 구현은 `CarSessionMachine.kt`·`CarSessionManager.kt`, 서버 구현은 `SessionService.kt`가 기준이다. 아래는 그 개요이며 상세 설명은 [CAR_APP.md](CAR_APP.md) 3절·[PROTOCOL.md](PROTOCOL.md) 4절에 있다. 폰 열은 P3/P4 실제 연동 후의 흐름이다. P2 화면은 로컬 샘플로만 전환하며 차에 요청·알림을 보내지 않는다.
+차 앱 구현은 `CarSessionMachine.kt`·`CarSessionManager.kt`, 서버 구현은 `SessionService.kt`, 폰 P3는 `PhoneSessionManager.kt`가 담당한다. 아래는 그 개요이며 상세 계약은 [PROTOCOL.md](PROTOCOL.md), 폰 상태 전이는 [PHONE_APP.md](PHONE_APP.md) 4절에 있다. P3 폰은 연결 완료와 첫 `session.state` 동기화 후 요청을 허용하고, 일반 끊김·재연결에도 최초 요청의 10초 응답 기한을 유지한다. 만료되면 Idle·연결 안내·미동기화 상태가 되며 서버의 새 스냅샷을 받은 뒤 새 요청을 허용한다. 종료 안내는 3초 후 홈으로 복귀한다. 일반 끊김은 재연결하며 4401은 자격 삭제·연결 화면, 4409는 자격 보존·명시적 다시 연결이다. 두 종료 코드 뒤에는 자동 재접속하지 않는다. 오프라인 종료 시에는 활성 상태와 안내를 유지해 재연결 후 재시도한다.
 
-| 단계 | 서버 상태 | 차 앱 상태 | 차 앱 | 폰 앱 (실제 연동은 P3/P4 예정) |
+| 단계 | 서버 상태 | 차 앱 상태 | 차 앱 | 폰 앱 (P3 통신, 위치·지도는 P4) |
 |---|---|---|---|---|
 | 요청 | REQUESTED | Requested | 알림 + 음성, 승인/거절 | "엄마 차에 알렸어요" |
-| 공유 | SHARING | Sharing | OSM 지도·상대 위치·방위·ETA | 차 위치, ETA |
+| 공유 | SHARING | Sharing | OSM 지도·상대 위치·방위·ETA | 실제 수신 ETA·실내등, 위치·지도 준비 안내. GPS·실제 지도는 P4 |
 | 근접 | SHARING | Nearby (50m 이내 + 기어 P에서 진입) | "○○가 가까이 왔어요", ON 지원 시 실내등 점등 | "실내등 켜진 차가 엄마 차예요" (ON 지원 시) |
 | 종료 | 세션 삭제 + `session.ended` 통지 | Ended(reason) | 실내등 복구, 이유별 화면(3초). 탑승 때는 알림·음성도 안내 | 이유별 안내 |
 
@@ -69,14 +70,14 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 
 - Nearby 전에 열린 문이나 다른 문의 닫힘은 판정에 쓰지 않는다. Nearby를 나가면 열린 문 기록을 비운다.
 - 기본 `PleosVehicleSignals`는 착석·벨트를 구독하지 않는다. 이 신호의 조회·로그는 spike에서만 수행했으며 당시 기본값은 승객석 착석 true였다(7절).
-- 판정 직후 확인 질문 없이 `session.boarded`를 보내고 바로 끝낸다. 폰의 실제 종료 수신·재요청 처리는 P3 예정이며 P2 종료 표시는 미리보기다.
+- 판정 직후 확인 질문 없이 `session.boarded`를 보내고 바로 끝낸다. 폰의 실제 종료 수신·재요청 처리는 P3 범위이며 최종 실행 근거를 별도로 기록한다. P2 종료 표시는 미리보기다.
 
 ## 4. 차량 제어: 실내등 차 찾기 (2026-11-06 확정)
 
 - Nearby에 들어갈 때 ON 지원 여부를 보고 마지막 조회값을 저장한 뒤 켠다. 현재값이 null이면 OFF를 저장한다. Ended나 Sharing으로 나갈 때 저장한 enum 값으로 되돌린다. 원래 ON이면 ON, AUTOMATIC이면 AUTOMATIC으로 복구한다.
 - 현재 값(`LightSwitch`: OFF, ON, DAYTIME_RUNNING, AUTOMATIC)과 지원 여부는 앱 시작 때와 Sharing 진입 때 `checkCabinLightSwitchCapabilities` + `getCabinLightSwitch`로 읽는다. 원래 값은 enum 그대로 저장하고, Boolean으로 줄이지 않는다. 저장·복구 판단은 차 앱 상태 머신이 한다(CAR_APP.md 3절).
 - `registerCabinLightState(LightStateListener)`도 있지만 실제 점등 상태(`LightState`)용이다. 스위치 설정값 구독 API는 문서에 없어서 쓰지 않는다.
-- ON 지원 여부가 true가 아니면 Nearby 진입의 저장·점등·`vehicle.light`를 생략하고 알림·음성과 탑승 판정을 유지한다. 폰 실내등 안내는 P2의 샘플 UI 범위이며 실제 `peer.light` 연동은 P3 예정이다.
+- ON 지원 여부가 true가 아니면 Nearby 진입의 저장·점등·`vehicle.light`를 생략하고 알림·음성과 탑승 판정을 유지한다. P3 폰은 해당 세션의 실제 `peer.light`가 true일 때만 실내등 안내를 강조한다. P2 미리보기의 실내등 샘플과 구분한다.
 - 원래 값은 Prefs의 `lightBefore`에도 저장한다. 재시작한 뒤 진행 세션이 없으면(`session.state none` + Idle) Manager가 복구하고 지운다. 공유 복원에서는 그 값을 유지해 다시 점등하더라도 덮어쓰지 않는다.
 - Nearby → Sharing 복구는 `SetCabinLight` → `SaveLightBefore(null)` → `vehicle.light(on = 원래 값이 ON)` 순이다. 종료 복구 때는 `vehicle.light`를 보내지 않는다. SDK set 실패는 로그로 남기고 처리를 계속하므로 상태 머신 효과와 실제 점등 성공은 구분한다.
 - 비상등은 Light API에 get·set이 모두 없다(Virtual Console에만 Hazard Lights 카드가 있다). 그래서 실내등을 쓴다.
@@ -186,5 +187,6 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 - UI 재설계 네이티브 QA·독립 검토 PASS(메인·리뷰어 Zeno 제공): 320dp/글꼴 1.3의 차 라벨·HUD 여백, 포커스 중 코드/커서, 스크롤 종료 버튼 접근을 확인해 필수 지적 2건을 해결했다. `Minji`·`012345` 입력 후 홈 인사, 정보 없음의 마커·측정값 숨김, 종료 확인의 계속 보기와 직접 종료, 가로 근접 화면·종료 버튼 스크롤도 확인했다. PNG 경로와 검증 경계는 PHONE_APP.md 6절이다. API 26 런타임은 미검증이다.
 - 음성(A6): Pleos ON_DEVICE TTS/STT 구현 완료. STT 실제 사람 발화와 승인·거절 전이는 사용자 검증 대기다.
 - 서버 Docker(S4): 설정 작성, Docker Hub timeout으로 이미지 빌드 성공 미확인. Railway(S5): 배포 미진행.
-- 폰 앱: P1은 기존 `Medium_Phone_API_36.0`(API 36 Play Store arm64)의 차·폰 동시 부팅으로 완료했다(차 `emulator-5554`, 폰 `emulator-5556`, 폰 boot complete=1, 이미지 다운로드 없음). 기존 P2 모듈·오프라인 UI·종료 6가지의 debug 폰 AVD 검증은 이력으로 유지하며 승인 UI 재설계의 새 최종 QA와 구분한다. 실제 양쪽 앱 시나리오는 P3/P4 미구현으로 검증하지 않았다. release 미리보기 차단은 소스·단위 테스트 근거이며 release APK 런타임 검증은 아니다.
+- 폰 앱의 이전 이력: P1은 기존 `Medium_Phone_API_36.0`(API 36 Play Store arm64)의 차·폰 동시 부팅으로 완료했다(차 `emulator-5554`, 폰 `emulator-5556`, 폰 boot complete=1, 이미지 다운로드 없음). P2 모듈·오프라인 UI·종료 6가지와 승인 UI 재설계의 debug 폰 AVD 결과도 이전 이력으로 유지한다. 당시 release 미리보기 차단은 소스·단위 테스트 근거이며 release APK 런타임 검증은 아니다.
+- 폰 P3 완료: 기존 통신 계약으로 REST 페어링·자격 보관·WebSocket·세션 상태 전이·재연결을 구현했다. 메인 제공 응답 기한 수정 후 phone 111개(매니저 42개 포함)와 직전 새 실행의 변경 없는 app 50개·protocol 9개를 합해 170개 통과, 실패·오류·건너뜀 0이다. 폰 테스트·debug 조립·lint 재실행은 23초·55개 태스크 실행으로 성공했고 lint는 오류 0·경고 10개다. 실제 페어링·요청·수락·양쪽 직접 종료·거절·requested/sharing 복원, 4409 재접속 중단과 명시적 재연결, 서버 재시작 후 자동 동기화, 4401 자격 삭제, 미리보기 격리·재실행 시 LIVE 진입을 확인했다. 예외 검증 후 최신 APK의 전체 정상 흐름도 재확인했으며 소스·테스트·Manifest의 독립 검토는 승인됐다. 범위별 근거는 [PHONE_APP.md 7절](PHONE_APP.md#7-p3-검증-결과)에 있다. P4 GPS·위치 서비스·양쪽 실제 지도, release APK 런타임·API 26 설치/런타임은 검증에 포함하지 않는다.
 - 외부 환경 검증 대기: 실제 마켓의 외부 통신·백그라운드 연결 정책, 앱 프로세스가 실행되지 않은 상태의 요청 수신. 현재 포그라운드 서비스 구현은 프로세스가 꺼져도 수신된다는 보장이 아니다.
