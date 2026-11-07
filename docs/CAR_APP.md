@@ -24,7 +24,7 @@
   id("org.jetbrains.kotlin.plugin.serialization") version "2.1.21" apply false
   ```
 - 모든 모듈은 JVM 17 바이트코드로 맞춘다. Android 모듈은 `compileOptions` 17 + `kotlinOptions.jvmTarget = "17"`(현재 `app`과 같음), `protocol`은 `java { source/targetCompatibility = 17 }` + `kotlin { compilerOptions { jvmTarget = JVM_17 } }`. 빌드 JDK(JBR 21)에 17 툴체인이 없어서 `jvmToolchain(17)`은 쓰지 않는다.
-- UI는 Jetpack Compose(Material3). Compose BOM은 작업할 때 compileSdk 35와 호환되는 최신 안정 버전을 골라 고정하고 이 절에 버전을 적는다.
+- UI는 Jetpack Compose(Material3). 고정한 버전(11/07): Compose BOM `2025.05.01`(ui 1.8.2, material3 1.3.2), activity-compose `1.10.1`, lifecycle `2.9.0`, core-ktx `1.16.0`, kotlinx-coroutines-android `1.10.2`. 더 최신(2026년) 버전은 compileSdk 36·새 Kotlin을 요구할 수 있어 올리지 않았다.
 - JSON은 `kotlinx-serialization-json` 1.8.1(`protocol` 모듈이 `api`로 노출). **메시지 인코딩·디코딩은 `com.maejung.protocol.Protocol`만 쓴다**(11/07 구현 완료):
   - `Protocol.encode(message, ts, sessionId?)` → 봉투 JSON 문자열. `Protocol.decode(text)` → `Received(message, sessionId, ts)`, JSON·봉투 형식이 틀리면 null, 모르는 type은 `Unknown(type, raw)`.
   - 메시지는 `ClientMessage`(보내는 것)·`ServerMessage`(받는 것) sealed 계층의 data class·data object다(`Messages.kt`). 값 상수는 `SessionStates`, `EndReasons`, `EtaSources`, `ErrorCodes`, `CloseCodes`.
@@ -89,7 +89,7 @@ app/src/main/java/com/maejung/
   - 새 요청을 띄우기 전에 같은 id의 알림을 `cancel`한다. 알림 센터에 이전 알림이 남아 있으면 갱신만 되고 헤드업으로 다시 뜨지 않는다.
   - 퍼미션 `POST_NOTIFICATIONS`(런타임, 33 이상).
 - 연결과 세션은 **Application 범위의 `CarSessionManager`가 소유**한다. 화면 회전·Activity 재생성에 끊기지 않게 하기 위해서다. ViewModel은 구독과 사용자 입력 전달만 한다.
-- `spike/VehicleSpikeActivity.kt`는 검증 기록으로 남긴다. 런처는 `MainActivity`로 옮기고, 스파이크 activity는 `exported=false`로 바꾼다.
+- `spike/VehicleSpikeActivity.kt`는 검증 기록으로 남긴다. 런처는 `MainActivity`로 옮겼다. 스파이크는 런처에서 빼되 adb로 열 수 있게 `exported=true`로 둔다(`adb shell am start -n com.maejung/.spike.VehicleSpikeActivity`). `exported=false`면 셸에서도 열 수 없다.
 - `pairing.completed`는 머신을 거치지 않는다. Manager가 Prefs의 가족 목록에 추가하고 HomeScreen에 "{이름} 연결됨"을 3초 보여준다.
 
 ## 3. 상태 머신

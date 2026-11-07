@@ -70,7 +70,7 @@
 
 ## 3. 차 앱 (`app/`)
 
-- [ ] **A1. 골격** — compileSdk 35, Compose 도입, `MaejungApp`·`MainActivity`(런처, distractionOptimized), 스파이크 activity `exported=false`, CAR_APP.md 2절 패키지와 인터페이스(빈 구현 가능), 퍼미션 정리(CAR_APP.md 5절).
+- [x] **A1. 골격** — compileSdk 35, Compose 도입, `MaejungApp`·`MainActivity`(런처, distractionOptimized), 스파이크는 런처에서 빼고 adb로만 열기, CAR_APP.md 2절 인터페이스(`VehicleSignals`, `SessionTransport`, `LocationSource`, `VoiceIO`), debug 서버 주소와 평문 허용(10.0.2.2), release 서버 주소 없으면 빌드 실패. 11/07 완료. 공조·창문 제어 퍼미션 정리는 스파이크가 쓰고 있어 D3(릴리스) 때 한다.
   - 완료 기준: `./gradlew :app:assembleDebug` 성공, 에뮬레이터에서 HomeScreen이 뜸.
 - [ ] **A2. 상태 머신** — `CarSessionMachine`(CAR_APP.md 3.4 표 전부).
   - 완료 기준: 표의 모든 행 + 아래 경우의 단위 테스트 통과(`./gradlew :app:testDebugUnitTest`): 길안내 500m 경계(이상이면 한 번만 시작, 미만이면 안 함, 종료 시 취소), 50m 진입·70m 이탈 경계, Nearby 전에 열린 문 무시, 실내등 원래 ON·AUTOMATIC(복구 후 원래 값), `supportsOn=false`(실내등 효과·`vehicle.light` 없음), 종료 전이에서는 `vehicle.light`를 보내지 않음(Nearby→Sharing에서만 보냄), `lightBefore`가 이미 있으면 덮어쓰지 않음, `session.state none`으로 정리.
