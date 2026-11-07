@@ -74,10 +74,10 @@
   - 완료 기준: `./gradlew :app:assembleDebug` 성공, 에뮬레이터에서 HomeScreen이 뜸.
 - [x] **A2. 상태 머신** — `CarSessionMachine`(CAR_APP.md 3.4 표 전부). 11/07 완료(테스트 38개 + 조사·음성 답 3개).
   - 완료 기준: 표의 모든 행 + 아래 경우의 단위 테스트 통과(`./gradlew :app:testDebugUnitTest`): 길안내 500m 경계(이상이면 한 번만 시작, 미만이면 안 함, 종료 시 취소), 50m 진입·70m 이탈 경계, Nearby 전에 열린 문 무시, 실내등 원래 ON·AUTOMATIC(복구 후 원래 값), `supportsOn=false`(실내등 효과·`vehicle.light` 없음), 종료 전이에서는 `vehicle.light`를 보내지 않음(Nearby→Sharing에서만 보냄), `lightBefore`가 이미 있으면 덮어쓰지 않음, `session.state none`으로 정리.
-- [ ] **A3. 차량 신호** — `PleosVehicleSignals`(기어, 승객 문 3개, 실내등 캐퍼빌리티·현재 값·구독·set).
+- [x] **A3. 차량 신호** (11/07 완료: 기어 P 수신, 승객 문 3개 열림·닫힘 구독, 실내등 지원 여부·현재 값 조회와 켜기·복구를 앱 흐름에서 확인) — `PleosVehicleSignals`(기어, 승객 문 3개, 실내등 캐퍼빌리티·현재 값·구독·set).
   - 완료 기준: Virtual Console로 기어·문을 바꾸면 화면(디버그 표시)에 반영, 실내등 ON/OFF 후 조회값 확인. 실내등 스위치는 구독하지 않고 앱 시작·Sharing 진입 때 조회한다(CAR_APP.md 3.2).
   - Nearby 도중 앱을 강제 종료(`adb shell am force-stop com.maejung`)하고 다시 켜도 실내등이 원래 값으로 돌아오는지(Prefs의 `lightBefore`) A5에서 확인한다.
-- [ ] **A4. 가짜 서버로 한 바퀴** — `FakeSessionTransport` + D1 좌표로 요청 → 승인 → 접근 → 실내등 → 문 열고 닫기 → boarded.
+- [x] **A4. 가짜 서버로 한 바퀴** (11/07 완료: 홈 화면 "가짜 요청 받기" → 수락 → 탑승자가 학원에서 2초 간격 15단계로 접근 → 34m에서 Nearby·실내등 ON → Virtual Console RR 문 열고 닫기 → Ended(boarded)·실내등 OFF 복구 → 3초 뒤 Idle. 로그 `adb logcat -s CarSession`) — `FakeSessionTransport` + D1 좌표로 요청 → 승인 → 접근 → 실내등 → 문 열고 닫기 → boarded.
   - 완료 기준: 서버 없이 에뮬레이터에서 전체 흐름이 보이고, 끝나면 실내등이 원래 값으로 돌아감.
 - [ ] **A5. 실제 서버 연결** — `WebSocketTransport`, `ApiClient`, 차 등록·토큰 저장, 가족 연결 코드 화면, `session.state` 처리.
   - 완료 기준: 로컬 서버에 붙어 코드 발급. 서버를 껐다 켜면 재연결 후 `session.state none`을 받아 진행 중 세션이 Ended(peer_lost)로 정리되고 실내등이 복구됨.

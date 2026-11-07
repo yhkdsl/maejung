@@ -58,10 +58,10 @@ app/src/main/java/com/maejung/
 ├── location/
 │   ├── LocationSource.kt         인터페이스: locations: Flow<Fix>
 │   ├── AndroidLocationSource.kt  LocationManager(GPS_PROVIDER), minTime 3초, minDistance 0
-│   └── FixedLocationSource.kt    고정 좌표(C1이 실패하면 데모에 쓴다)
+│   └── (FixedLocationSource.kt)  C1에서 에뮬레이터 위치 주입이 돼서 만들지 않았다
 ├── voice/
 │   ├── VoiceIO.kt                인터페이스: speak(text), listen(): String?
-│   └── PleosVoiceIO.kt           말하기: Pleos TextToSpeech SDK `Mode.ON_DEVICE`(DESIGN.md 6절, 안드로이드 기본 TTS는 에뮬레이터에 엔진이 없음). 듣기: SpeechRecognizer
+│   └── PleosVoiceIO.kt           말하기: Pleos TextToSpeech SDK `Mode.ON_DEVICE`, 초기화 전 요청은 모아 두었다가 읽는다. 듣기(listen)는 아직 null(A6·A8에서 SpeechRecognizer)
 ├── eta/
 │   └── EtaCalculator.kt          길안내 중이면 마지막 `onDrivingInfo` 값(`source: navi`), 아니면 직선거리 × 1.3 ÷ 5.6m/s(20km/h, `source: estimate`)
 ├── navi/

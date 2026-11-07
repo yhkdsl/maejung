@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -16,7 +17,7 @@ import androidx.compose.ui.unit.sp
 
 /** 연결 상태, 연결된 가족, 가족 연결 버튼. 운전 중에는 이 화면을 볼 일이 거의 없다(요청은 헤드업 알림으로 온다) */
 @Composable
-fun HomeScreen(state: HomeUiState, onPairClick: () -> Unit) {
+fun HomeScreen(state: HomeUiState, onPairClick: () -> Unit, onFakeRequest: (() -> Unit)? = null) {
     Column(
         modifier = Modifier.fillMaxSize().padding(48.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -37,6 +38,12 @@ fun HomeScreen(state: HomeUiState, onPairClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(160.dp),
         ) {
             Text("가족 연결", fontSize = 36.sp)
+        }
+        // 가짜 서버로 돌 때만 보이는 디버그 버튼(A4)
+        if (onFakeRequest != null) {
+            OutlinedButton(onClick = onFakeRequest, modifier = Modifier.fillMaxWidth().height(120.dp)) {
+                Text("가짜 요청 받기 (디버그)", fontSize = 32.sp)
+            }
         }
     }
 }
