@@ -90,6 +90,7 @@ app/src/main/java/com/maejung/
 - 4401이면 transport 자체는 재연결하지 않지만 Manager가 토큰·가족 목록을 지우고 차를 다시 등록해 연결한다. 4409이면 `REPLACED` 상태로 남는다.
 - `spike/VehicleSpikeActivity.kt`는 검증 기록으로 남긴다. 런처는 `MainActivity`로 옮겼다. 스파이크는 런처에서 빼되 adb로 열 수 있게 `exported=true`로 둔다(`adb shell am start -n com.maejung/.spike.VehicleSpikeActivity`). `exported=false`면 셸에서도 열 수 없다.
 - `pairing.completed`는 머신을 거치지 않는다. Manager가 Prefs의 가족 목록에 추가하고 HomeScreen에 "{이름} 연결됨"을 3초 보여준다.
+- 다시 연결하면 서버가 새 riderId를 주므로, 가족 목록은 같은 riderId **또는 같은 이름**의 예전 항목을 지우고 새 항목을 붙인다(`withMember`). 이전에 쌓인 중복도 읽을 때 마지막 연결만 남긴다(`distinctByName`, `FamilyTest` 4개). 이름이 같은 가족 두 명은 구분하지 않는다. 이전 riderToken은 서버가 폐기하지 못해 계속 유효하다(PROTOCOL.md 1절).
 
 ## 3. 상태 머신
 
