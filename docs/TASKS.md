@@ -65,7 +65,7 @@
 
 ## 2. 공용 모듈
 
-- [ ] **M1. `protocol/` 모듈** — PROTOCOL.md 3절의 모든 메시지를 `@Serializable` 클래스로. 루트 플러그인 정리와 JVM 17 설정은 CAR_APP.md 1절.
+- [x] **M1. `protocol/` 모듈** — PROTOCOL.md 3절의 모든 메시지를 `@Serializable` 클래스로. 루트 플러그인 정리와 JVM 17 설정은 CAR_APP.md 1절. 11/07 완료(테스트 9개, 서버 실제 출력 형식 디코딩 포함). 사용법은 CAR_APP.md 1절.
   - 완료 기준: 메시지마다 직렬화 왕복 단위 테스트(`./gradlew :protocol:test`). 모르는 type은 예외 없이 `Unknown`으로 디코딩.
 
 ## 3. 차 앱 (`app/`)

@@ -23,9 +23,13 @@
   id("org.jetbrains.kotlin.plugin.compose") version "2.1.21" apply false
   id("org.jetbrains.kotlin.plugin.serialization") version "2.1.21" apply false
   ```
-- 모든 모듈은 JVM 17 바이트코드로 맞춘다. Android 모듈은 `compileOptions` 17 + `kotlinOptions.jvmTarget = "17"`(현재 `app`과 같음), `protocol`은 `kotlin { jvmToolchain(17) }`. JBR 21로 빌드해도 타깃이 어긋나지 않게 한다.
+- 모든 모듈은 JVM 17 바이트코드로 맞춘다. Android 모듈은 `compileOptions` 17 + `kotlinOptions.jvmTarget = "17"`(현재 `app`과 같음), `protocol`은 `java { source/targetCompatibility = 17 }` + `kotlin { compilerOptions { jvmTarget = JVM_17 } }`. 빌드 JDK(JBR 21)에 17 툴체인이 없어서 `jvmToolchain(17)`은 쓰지 않는다.
 - UI는 Jetpack Compose(Material3). Compose BOM은 작업할 때 compileSdk 35와 호환되는 최신 안정 버전을 골라 고정하고 이 절에 버전을 적는다.
-- JSON은 `kotlinx-serialization-json`. 다형 직렬화의 `classDiscriminator`는 모르는 type을 만나면 예외를 던지므로 쓰지 않는다. 대신 `protocol` 모듈에 디코더를 하나 둔다: 문자열을 `JsonObject`로 파싱 → `type`을 읽음 → `when(type)`으로 payload를 해당 `@Serializable` 클래스로 디코딩 → 모르는 type은 `Unknown(type, raw)`. `Json { ignoreUnknownKeys = true; encodeDefaults = true }` 설정 하나를 양쪽 앱이 같이 쓴다.
+- JSON은 `kotlinx-serialization-json` 1.8.1(`protocol` 모듈이 `api`로 노출). **메시지 인코딩·디코딩은 `com.maejung.protocol.Protocol`만 쓴다**(11/07 구현 완료):
+  - `Protocol.encode(message, ts, sessionId?)` → 봉투 JSON 문자열. `Protocol.decode(text)` → `Received(message, sessionId, ts)`, JSON·봉투 형식이 틀리면 null, 모르는 type은 `Unknown(type, raw)`.
+  - 메시지는 `ClientMessage`(보내는 것)·`ServerMessage`(받는 것) sealed 계층의 data class·data object다(`Messages.kt`). 값 상수는 `SessionStates`, `EndReasons`, `EtaSources`, `ErrorCodes`, `CloseCodes`.
+  - REST 본문은 `Rest.kt`(`VehicleRegistered`, `PairingCodeIssued`, `PairingRequest`, `PairingResult`, `ApiError`, `ApiPaths`)를 `Protocol.json`으로 읽고 쓴다.
+  - 다형 직렬화의 `classDiscriminator`는 모르는 type에서 예외를 던져서 쓰지 않고, type을 먼저 읽어 나눈다.
 - 네트워크는 OkHttp 4.12.0(이미 추가됨, WebSocket 확인 완료).
 - 서버 주소는 `BuildConfig.SERVER_URL`(`buildFeatures { buildConfig = true }`).
   - debug: `http://10.0.2.2:8080`. `res/xml/network_security_config.xml`에서 `10.0.2.2`만 평문 허용.
