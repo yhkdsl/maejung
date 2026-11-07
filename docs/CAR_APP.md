@@ -42,13 +42,12 @@ app/src/main/java/com/maejung/
 ├── MaejungApp.kt                 Application. CarSessionManager를 만들어 들고 있는다(DI 프레임워크 없음)
 ├── MainActivity.kt               Compose 진입점, 런처, distractionOptimized
 ├── session/
-│   ├── CarSessionMachine.kt      순수 Kotlin 상태 머신. reduce(state, event) → (새 state, 효과 목록)
-│   ├── CarSessionState.kt        Idle / Requested / Sharing / Nearby / Ended(reason) + 컨텍스트(아래)
-│   ├── CarEvent.kt               입력 이벤트(3.2)
-│   ├── CarEffect.kt              출력 효과(3.3)
+│   ├── CarSessionMachine.kt      순수 Kotlin 상태 머신. `reduce(CarSession, CarEvent)` → (새 CarSession, 효과 목록). 11/07 구현, 테스트 38개
+│   ├── CarSession.kt             `Phase`(Idle / Requested / Sharing / Nearby / Ended(reason)) + 컨텍스트를 담은 `CarSession`, `CarEvent`(3.2), `CarEffect`(3.3)
+│   ├── Korean.kt                 이름 조사(민지가/준영이가), 음성 답 해석 `VoiceAnswers.parse`(승인·거절·무시)
 │   └── CarSessionManager.kt      Application 범위. 머신 + transport + vehicle + location + voice를 묶어 이벤트를 넣고 효과를 실행. state를 StateFlow로 공개
 ├── vehicle/
-│   ├── VehicleSignals.kt         인터페이스: gear: Flow, doorPositions: Flow<(DoorValue, Int)>, cabinLight: Flow<CabinLightInfo>, setCabinLight(on)
+│   ├── VehicleSignals.kt         인터페이스: gear: Flow<Gear>, doors: Flow<DoorPosition>, readCabinLight(), setCabinLight(CabinSwitch)
 │   ├── PleosVehicleSignals.kt    Vehicle SDK 구현(스파이크 코드 참고)
 │   └── FakeVehicleSignals.kt     테스트·데모용
 ├── net/
@@ -147,8 +146,8 @@ app/src/main/java/com/maejung/
 | Idle | `pickup.requested` | Requested | ShowRequestAlert, Speak("{이름}가 데리러 와 달래요. 갈까요?"), Listen |
 | Requested | UserAccept(알림·화면 버튼, 또는 음성 "응/그래/갈게/좋아" 포함) | Sharing | DismissRequestAlert, Send(`pickup.accept`), StartLocationSharing |
 | Requested | UserReject(알림·화면 버튼, 또는 음성 "아니/안 돼/싫어" 포함) | Ended(rejected) | DismissRequestAlert, Send(`pickup.reject`) |
-| Sharing | 첫 Distance 계산, `distance ≥ 500 && !navStarted` | Sharing | StartNavigation(peer), `navStarted = true`, Speak("{이름}에게 가는 길을 안내할게요") |
-| Sharing | 조건 `distance ≤ 50 && gear == P` 충족(Distance 또는 Gear 이벤트) | Nearby | `lightInfo.supportsOn`이고 `lightBefore == null`이면: `lightBefore = lightInfo.current ?: OFF`, SaveLightBefore(lightBefore), SetCabinLight(ON), Send(`vehicle.light on`). 공통: Notify("{이름}가 가까이 왔어요"), Speak(같은 문장) |
+| Sharing | 이 세션에서 처음 null이 아닌 Distance(`navDecided == false`) | Sharing | `navDecided = true`. `distance ≥ 500`이고 탑승자 좌표가 있으면 StartNavigation(peer), `navStarted = true`, Speak("{이름}에게 가는 길을 안내할게요"). 500m 미만이면 이 세션에서는 다시 판단하지 않는다 |
+| Sharing | 조건 `distance ≤ 50 && gear == P` 충족(Distance 또는 Gear 이벤트) | Nearby | `lightInfo.supportsOn`이면: `lightBefore == null`일 때만 `lightBefore = lightInfo.current ?: OFF`, SaveLightBefore(lightBefore). 그다음 SetCabinLight(ON), Send(`vehicle.light on`). 공통: Notify("{이름}가 가까이 왔어요"), Speak(같은 문장) |
 | Nearby | `distance > 70 \|\| distance == null \|\| gear != P` | Sharing | 복구(공유 유지) |
 | Nearby | Door(승객 문, 1) | Nearby | openedDoors에 추가 |
 | Nearby | Door(openedDoors에 있는 문, 0) 그리고 `gear == P && distance ≤ 30` | Ended(boarded) | Send(`session.boarded`), 종료 공통, Notify·Speak("{이름} 탑승 확인, 위치공유를 끝낼게요") |
@@ -156,7 +155,7 @@ app/src/main/java/com/maejung/
 | Requested·Sharing·Nearby | `session.ended(reason)` | Ended(reason) | 종료 공통 |
 | Requested·Sharing·Nearby | `session.state none` | Ended(peer_lost) | 종료 공통 |
 | Idle | `session.state requested` | Requested | (음성 없음) |
-| Idle·Requested | `session.state sharing` | Sharing | StartLocationSharing |
+| Idle·Requested | `session.state sharing` | Sharing | (Requested였으면 DismissRequestAlert), StartLocationSharing |
 | Ended | EndedTimeout | Idle | - |
 | Ended | `pickup.requested` | Requested | 위 Idle 행과 같음 |
 
@@ -166,7 +165,10 @@ app/src/main/java/com/maejung/
 - `lightInfo.supportsOn`이 false면 실내등 효과와 `vehicle.light`를 모두 생략한다. 나머지 흐름은 같다.
 - 실내등이 원래 켜져 있었으면(`lightBefore == ON`) 복구해도 켜진 채로 둔다. AUTOMATIC이었으면 AUTOMATIC으로 되돌린다.
 - `lightBefore`가 이미 있으면(앱 재시작 후 Prefs에서 복원) Nearby에 다시 들어가도 덮어쓰지 않는다.
-- 음성 인식이 실패하거나 지원되지 않으면 버튼만으로 동작해야 한다. 음성 결과에 승인·거절 단어가 다 없으면 무시한다.
+- 음성 인식이 실패하거나 지원되지 않으면 버튼만으로 동작해야 한다. 음성 결과는 `VoiceAnswers.parse`로 해석하고(거절 단어를 먼저 본다, "안 갈게" 때문), 승인·거절 단어가 다 없으면 무시한다. "어"는 "어디야"에도 들어 있어 승인 단어에서 뺐다.
+- 안내 문장의 이름 조사는 받침에 따라 고른다(민지가 / 준영이가, 민지에게 / 준영이에게).
+- 새 요청(Requested 진입) 때 탑승자 좌표·거리·길안내 판단을 비운다. 실내등 원래 값(`lightBefore`)은 비우지 않는다(앱 재시작 복원값일 수 있다).
+- 효과 순서는 테스트로 고정되어 있다. 종료 전이는 `[서버에 보낼 메시지] → DismissRequestAlert → 실내등 복구 → StopLocationSharing → StopNavigation → [안내]` 순이다.
 - 위치 전송(StartLocationSharing)은 PROTOCOL.md 3.2의 heartbeat 규칙을 따른다(3초 또는 10m, 최소 10초마다).
 
 ## 4. 화면 원칙 (주행 중)
