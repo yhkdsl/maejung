@@ -51,6 +51,8 @@ class MainActivity : ComponentActivity() {
                     val pairingCode by viewModel.pairingCode.collectAsStateWithLifecycle()
                     val pairingFailed by viewModel.pairingFailed.collectAsStateWithLifecycle()
                     val pairedName by viewModel.pairedNotice.collectAsStateWithLifecycle()
+                    val eta by viewModel.eta.collectAsStateWithLifecycle()
+                    val bearing by viewModel.bearing.collectAsStateWithLifecycle()
                     when (val phase = session.phase) {
                         Phase.Idle -> HomeScreen(
                             state = HomeUiState(connection, family, pairingCode, pairingFailed, pairedName),
@@ -59,10 +61,20 @@ class MainActivity : ComponentActivity() {
                             onFakeRequest = if (viewModel.isFake) viewModel::fakeRequest else null,
                         )
                         is Phase.Requested -> RequestScreen(phase.riderName, viewModel::accept, viewModel::reject)
-                        is Phase.Sharing -> SharingScreen(phase.riderName, session.distanceM, nearby = false, lightOn = false, viewModel::end)
+                        is Phase.Sharing -> SharingScreen(
+                            phase.riderName,
+                            session.distanceM,
+                            bearing,
+                            eta,
+                            nearby = false,
+                            lightOn = false,
+                            onEnd = viewModel::end,
+                        )
                         is Phase.Nearby -> SharingScreen(
                             phase.riderName,
                             session.distanceM,
+                            bearing,
+                            eta,
                             nearby = true,
                             lightOn = session.lightInfo?.supportsOn == true && session.lightBefore != CabinSwitch.ON,
                             onEnd = viewModel::end,

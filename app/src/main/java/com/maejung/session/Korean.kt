@@ -13,6 +13,9 @@ fun String.toSubject(): String = if (endsWithBatchim()) "${this}이가" else "${
 /** 민지 → 민지에게, 준영 → 준영이에게 */
 fun String.toObject(): String = if (endsWithBatchim()) "${this}이에게" else "${this}에게"
 
+/** 민지 → 민지와, 준영 → 준영과 */
+fun String.toWith(): String = if (endsWithBatchim()) "${this}과" else "${this}와"
+
 enum class VoiceAnswer { ACCEPT, REJECT }
 
 /**

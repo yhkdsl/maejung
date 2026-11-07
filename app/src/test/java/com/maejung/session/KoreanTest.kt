@@ -12,6 +12,8 @@ class KoreanTest {
         assertEquals("민지에게", "민지".toObject())
         assertEquals("준영이에게", "준영".toObject())
         assertEquals("Mina가", "Mina".toSubject())
+        assertEquals("민지와", "민지".toWith())
+        assertEquals("준영과", "준영".toWith())
     }
 
     @Test

@@ -25,6 +25,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- 에뮬레이터에 안드로이드 기본 TTS 엔진이 없어 Pleos TTS(ON_DEVICE)를 쓴다 -->
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- 음성 승인. 안드로이드 SpeechRecognizer는 에뮬레이터에서 응답이 없어 Pleos STT(ON_DEVICE)를 쓴다 -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <!-- 마중: 탑승자 위치까지 경로·도착 예정 시간 -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />

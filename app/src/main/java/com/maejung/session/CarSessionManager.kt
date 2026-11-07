@@ -3,6 +3,9 @@ package com.maejung.session
 import android.location.Location
 import android.util.Log
 import com.maejung.alert.PickupAlerts
+import com.maejung.eta.Eta
+import com.maejung.eta.EtaCalculator
+import com.maejung.protocol.EtaUpdate
 import com.maejung.location.Fix
 import com.maejung.navi.Navigator
 import com.maejung.location.LocationSource
@@ -61,6 +64,13 @@ class CarSessionManager(
     private val _pairedNotice = MutableStateFlow<String?>(null)
     val pairedNotice: StateFlow<String?> = _pairedNotice.asStateFlow()
 
+    /** 공유 중 도착 예정 시간. 폰에도 같은 값을 eta.update로 보낸다 */
+    private val _eta = MutableStateFlow<Eta?>(null)
+    val eta: StateFlow<Eta?> = _eta.asStateFlow()
+
+    private val _bearing = MutableStateFlow<Float?>(null)
+    val bearing: StateFlow<Float?> = _bearing.asStateFlow()
+
     private var peer: PeerLocation? = null
     private var sharingJob: Job? = null
     private var endedJob: Job? = null
@@ -87,6 +97,7 @@ class CarSessionManager(
         scope.launch {
             location.fixes.collect {
                 _carFix.value = it
+                updateBearing()
                 events.send(CarEvent.Distance(distance()))
             }
         }
@@ -162,6 +173,7 @@ class CarSessionManager(
         }
         if (message is PeerLocation) {
             peer = message
+            updateBearing()
             events.send(CarEvent.Distance(distance()))
         }
     }
@@ -215,8 +227,20 @@ class CarSessionManager(
         peer = null
         sharingJob = scope.launch {
             events.send(CarEvent.CabinLight(vehicle.readCabinLight()))
+            var lastEta: Eta? = null
+            var lastEtaSentAt = 0L
             while (isActive) {
                 _carFix.value?.let { transport.send(LocationUpdate(it.lat, it.lng, it.accuracy)) }
+                // 길안내 중이면 내비 값, 아니면 직선거리로 추정(EtaCalculator)
+                val eta = navigator.eta.value?.let { EtaCalculator.fromNavi(it.meters, it.seconds) }
+                    ?: distance()?.let(EtaCalculator::estimate)
+                _eta.value = eta
+                val now = System.currentTimeMillis()
+                if (eta != null && EtaCalculator.shouldSend(lastEta, lastEtaSentAt, eta, now)) {
+                    transport.send(EtaUpdate(eta.seconds, eta.meters, eta.source))
+                    lastEta = eta
+                    lastEtaSentAt = now
+                }
                 delay(HEARTBEAT_MS)
             }
         }
@@ -226,6 +250,17 @@ class CarSessionManager(
         sharingJob?.cancel()
         sharingJob = null
         peer = null
+        _eta.value = null
+        _bearing.value = null
+    }
+
+    /** 차에서 본 탑승자 방향(북쪽 기준 시계방향 각도). 공유 화면의 화살표 */
+    private fun updateBearing() {
+        val car = _carFix.value ?: return
+        val rider = peer ?: return
+        val result = FloatArray(2)
+        Location.distanceBetween(car.lat, car.lng, rider.lat, rider.lng, result)
+        _bearing.value = result[1]
     }
 
     private fun distance(): Double? {

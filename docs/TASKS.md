@@ -81,12 +81,12 @@
   - 완료 기준: 서버 없이 에뮬레이터에서 전체 흐름이 보이고, 끝나면 실내등이 원래 값으로 돌아감.
 - [x] **A5. 실제 서버 연결** — `WebSocketTransport`, `ApiClient`, 차 등록·토큰 저장, 가족 연결 코드 화면, `session.state` 처리. 11/07 완료: 로컬 서버 + `scripts/fake-rider.mjs`(폰 대신)로 코드 발급 → 페어링(차에 "민지 연결됨") → 요청 → 수락 → 위치 양방향 → 34m Nearby·실내등 ON·폰에 `peer.light on` → RR 문 → 양쪽 `session.ended(boarded)`. Nearby 중 서버를 껐다 켜자 차가 다시 붙어 `session.state none` → Ended(peer_lost)·실내등 OFF 복구. 차 토큰은 Prefs에 남아 재등록 없음.
   - 완료 기준: 로컬 서버에 붙어 코드 발급. 서버를 껐다 켜면 재연결 후 `session.state none`을 받아 진행 중 세션이 Ended(peer_lost)로 정리되고 실내등이 복구됨.
-- [ ] **A6. 음성** — `PleosVoiceIO`(말하기는 Pleos TTS ON_DEVICE, 듣기는 SpeechRecognizer). 스파이크 `pleosTts()` 참고.
+- [x] **A6. 음성** — `PleosVoiceIO`(말하기·듣기 모두 Pleos Speech SDK ON_DEVICE). 11/07: TTS 안내 재생 확인. 안드로이드 SpeechRecognizer는 에뮬레이터에서 준비 콜백도 없이 시간 초과라 Pleos STT로 바꿨고, Pleos STT는 요청 안내 뒤 "말할 준비 됨"까지 확인. **"응"을 실제로 알아듣는지는 사람 발화로 확인해야 한다(사용자 할 일).**
   - 완료 기준: 요청 시 TTS 안내가 나옴. STT가 되면 "응"으로 승인됨.
-- [x] **A8. 알림·길안내·백그라운드** — `PickupNotifications`(스파이크 `spike/PickupAlert.kt` 참고), `PickupAlertReceiver`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙). 11/07 완료(음성 승인 제외): 내비가 앞에 있는 상태에서 헤드업 요청 알림 → 수락(헤드업·알림 센터 둘 다) → 내비를 띄운 채로 위치 공유·34m 근접 안내·실내등·탑승 감지까지 동작. 차를 1,099m 떨어뜨리면 수락 직후 길안내 시작, 차에서 "공유 끝내기"하면 길안내 취소. **음성 승인은 미확인**: 인식 결과·오류 로그가 남지 않아 실제 발화로 확인해야 한다.
+- [x] **A8. 알림·길안내·백그라운드** — `PickupNotifications`(스파이크 `spike/PickupAlert.kt` 참고), `PickupAlertReceiver`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙). 11/07 완료(음성 승인 제외): 내비가 앞에 있는 상태에서 헤드업 요청 알림 → 수락(헤드업·알림 센터 둘 다) → 내비를 띄운 채로 위치 공유·34m 근접 안내·실내등·탑승 감지까지 동작. 차를 1,099m 떨어뜨리면 수락 직후 길안내 시작, 차에서 "공유 끝내기"하면 길안내 취소. **음성 승인은 미확인**: A6에서 Pleos STT로 바꿔 인식 준비까지는 확인, 실제 발화 확인이 남았다.
   - 완료 기준: 내비 화면이 앞에 있을 때 요청이 오면 헤드업 알림이 뜨고 수락·거절이 동작. 차와 탑승자가 500m 이상이면 수락 후 길안내가 시작되고, 탑승 감지·수동 종료 시 길안내가 취소됨. 마중 앱이 화면 뒤에 있어도 위치 전송과 탑승 감지가 계속됨.
   - 음성 승인 테스트는 실제 발화가 필요하다. 에뮬레이터에서 PC 마이크를 켜고 사용자에게 "응"이라고 말해 달라고 요청한다.
-- [ ] **A7. 위치·ETA** — `AndroidLocationSource`(C1 결과 반영, 안 되면 `FixedLocationSource`), heartbeat 전송(PROTOCOL.md 3.2), `EtaCalculator`(N1 결과 반영), `eta.update` 전송 규칙.
+- [x] **A7. 위치·ETA** — `AndroidLocationSource`(C1 결과 반영, 안 되면 `FixedLocationSource`), heartbeat 전송(PROTOCOL.md 3.2), `EtaCalculator`(N1 결과 반영), `eta.update` 전송 규칙. 11/07 완료: 공유 화면 "189m 남동쪽, 도착까지 약 1분(예상)", 접근할수록 폰에 `peer.eta` 60→40→28→16초, 정차 3분 넘게 유지해도 끊기지 않고 30초마다 ETA 재전송. `EtaCalculatorTest` 5개. 방향은 정차 중 차 방향을 몰라 화살표 대신 8방위 글자로 보여준다.
   - 완료 기준: 정차 상태로 3분 두어도 서버가 `peer_lost`로 끊지 않음. 탑승자 위치를 옮기면 SharingScreen의 거리·방향·ETA가 바뀜. 서버 로그에 `eta.update`가 30초 간격으로 찍힘.
 
 ## 4. 폰 앱 (`phone/`)

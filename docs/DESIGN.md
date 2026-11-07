@@ -106,7 +106,7 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | 기능 | 지금 | Pleos SDK 오픈 후 |
 |---|---|---|
 | 음성 출력 | **Pleos TextToSpeech SDK 3.3.1, `Mode.ON_DEVICE`**(11/07 확인). 에뮬레이터에 안드로이드 기본 TTS 엔진이 없어 `android.speech.tts.TextToSpeech`는 초기화 실패(-1) | 같음 |
-| 음성 인식 | `android.speech.SpeechRecognizer`(인식기 있음, 실제 인식은 미확인) | SpeechToText SDK(Maven에 3.3.1 있음) |
+| 음성 인식 | **Pleos SpeechToText SDK 3.3.1, `Mode.ON_DEVICE`**(11/07 전환). `SpeechToText(context, Mode.ON_DEVICE)` → `initialize(OnInitializeListener)` → `addListener(ResultListener)` → `setLocale(Locale.KOREA)` → `request()`, 결과는 `onUpdated(stt, completed)`, 끝은 `onEndedRecognition`, `stop()`. import `ai.pleos.playground.stt.{SpeechToText, constant.Mode, constant.ErrorType, listener.OnInitializeListener, listener.ResultListener}` | 같음 |
 | 차 위치 | `LocationManager`(GPS_PROVIDER, `emu geo fix` 동작 확인) | FusedLocation SDK(Maven에 1.1.3 있음) |
 | ETA | NaviHelper 경로가 있으면 `onDrivingInfo`, 없으면 직선거리 추정 | 같음 |
 | 요청 수신 | WebSocket(OkHttp, 마중 서버) | 변경 없음 (차에 GMS 없음) |
@@ -137,7 +137,7 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | 11/07 | 런타임 퍼미션 부여 | 차 에뮬레이터 앱은 사용자 10에서 돈다. `adb shell pm grant --user 10 com.maejung <퍼미션>`이어야 한다(`--user` 없이는 적용 안 됨) |
 | 11/07 | V1 안드로이드 TTS | 실패. `TextToSpeech` 초기화 status -1(엔진 없음) |
 | 11/07 | V1 Pleos TTS ON_DEVICE | 성공. 초기화 → `onStart` → 약 2.6초 뒤 `onDone`(한국어 문장) |
-| 11/07 | V1 STT | `SpeechRecognizer.isRecognitionAvailable` = true(인식 서비스 `ai.umos.ambientai`). 실제 음성 인식은 마이크 입력이 필요해 미확인 |
+| 11/07 | V1 STT | `SpeechRecognizer.isRecognitionAvailable` = true(인식 서비스 `ai.umos.ambientai`)지만, 실제로 `startListening`하면 준비 콜백도 오류도 없이 10초 시간 초과(앱이 뒤에 있을 때는 오류 9, 마이크 타입 포그라운드 서비스로 해결). **Pleos STT ON_DEVICE로 바꾸자 `onReady`("말할 준비 됨")까지 옴.** 실제 인식은 사람 발화로 확인 필요 |
 | 11/07 | N1 NaviHelper | 성공. `requestRoute(RouteInfo(lat, lng, …))` → `onRouteStarted(RouteStartInfo(duration=1620, distance=12000, …))`, `onDrivingInfo(destination.distance=12000m, duration=1620초)`. `cancelRoute()` → `onRouteCancelled`. **`requestRoute`를 부르면 내비 앱이 화면 앞으로 나온다.** 에뮬레이터 내비는 `emu geo fix`를 쓰지 않고 자체 기본 위치(성남 시흥동 부근)에서 경로를 잡는다(NMEA 체크섬 경고) |
 
 - Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)의 BODY 패널에서 문 열림·닫힘, 다른 패널에서 기어, 공조, 앰비언트를 주입할 수 있다. 착석(Seat Occupancy) 카드도 있다.

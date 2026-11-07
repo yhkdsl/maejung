@@ -16,8 +16,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.maejung.eta.Eta
 import com.maejung.protocol.EndReasons
+import com.maejung.protocol.EtaSources
 import com.maejung.session.toSubject
+import com.maejung.session.toWith
 
 // 주행 중 화면 원칙(docs/CAR_APP.md 4절): 버튼은 화면 높이 1/4 이상, 글자 32sp 이상, 화면당 버튼 최대 2개
 
@@ -42,16 +45,33 @@ fun RequestScreen(riderName: String, onAccept: () -> Unit, onReject: () -> Unit)
 }
 
 @Composable
-fun SharingScreen(riderName: String, distanceM: Double?, nearby: Boolean, lightOn: Boolean, onEnd: () -> Unit) {
+fun SharingScreen(
+    riderName: String,
+    distanceM: Double?,
+    bearing: Float?,
+    eta: Eta?,
+    nearby: Boolean,
+    lightOn: Boolean,
+    onEnd: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(48.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         Text(
-            if (nearby) "${riderName.toSubject()} 가까이 왔어요" else "${riderName}와 위치 공유 중",
+            if (nearby) "${riderName.toSubject()} 가까이 왔어요" else "${riderName.toWith()} 위치 공유 중",
             fontSize = 48.sp,
         )
-        Text(distanceM?.let { "${it.toInt()}m" } ?: "거리 확인 중", fontSize = 96.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            Text(distanceM?.let { "${it.toInt()}m" } ?: "거리 확인 중", fontSize = 96.sp)
+            // 정차 중에는 차 방향을 알 수 없어 화살표 대신 방위(북동쪽 등)로 보여준다
+            bearing?.let { Text(compassName(it), fontSize = 48.sp, modifier = Modifier.padding(top = 32.dp)) }
+        }
+        eta?.let {
+            val minutes = (it.seconds + 59) / 60
+            val label = if (it.source == EtaSources.NAVI) "길안내 기준" else "예상"
+            Text("도착까지 약 ${minutes}분 ($label)", fontSize = 36.sp)
+        }
         if (lightOn) Text("실내등을 켰어요", fontSize = 32.sp, color = MaterialTheme.colorScheme.primary)
         Button(
             onClick = onEnd,
@@ -61,6 +81,13 @@ fun SharingScreen(riderName: String, distanceM: Double?, nearby: Boolean, lightO
             Text("공유 끝내기", fontSize = 36.sp, color = MaterialTheme.colorScheme.onErrorContainer)
         }
     }
+}
+
+/** 북쪽 기준 방위각 → 8방위 이름 */
+private fun compassName(bearing: Float): String {
+    val names = listOf("북쪽", "북동쪽", "동쪽", "남동쪽", "남쪽", "남서쪽", "서쪽", "북서쪽")
+    val normalized = (bearing % 360 + 360) % 360
+    return names[((normalized + 22.5f) / 45f).toInt() % 8]
 }
 
 @Composable

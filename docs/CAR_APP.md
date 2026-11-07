@@ -61,7 +61,7 @@ app/src/main/java/com/maejung/
 │   └── (FixedLocationSource.kt)  C1에서 에뮬레이터 위치 주입이 돼서 만들지 않았다
 ├── voice/
 │   ├── VoiceIO.kt                인터페이스: speak(text), listen(): String?
-│   └── PleosVoiceIO.kt           말하기: Pleos TextToSpeech SDK `Mode.ON_DEVICE`, 초기화 전 요청은 모아 두었다가 읽는다. 듣기(listen)는 아직 null(A6·A8에서 SpeechRecognizer)
+│   └── PleosVoiceIO.kt           말하기: Pleos TextToSpeech SDK `Mode.ON_DEVICE`, 초기화 전 요청은 모아 두었다가 읽는다. 듣기: Pleos SpeechToText SDK 3.3.1 `Mode.ON_DEVICE`(`STT_SERVICE` 퍼미션), 안내가 끝난 뒤 `request()`, 완료된 `onUpdated`나 10초 시간 초과까지 기다린다. 안드로이드 SpeechRecognizer는 에뮬레이터에서 응답이 없어 쓰지 않는다
 ├── eta/
 │   └── EtaCalculator.kt          길안내 중이면 마지막 `onDrivingInfo` 값(`source: navi`), 아니면 직선거리 × 1.3 ÷ 5.6m/s(20km/h, `source: estimate`)
 ├── navi/
