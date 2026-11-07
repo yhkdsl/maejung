@@ -53,8 +53,8 @@ app/src/main/java/com/maejung/
 ├── net/
 │   ├── SessionTransport.kt       인터페이스: connect(token), send(msg), incoming: Flow<ServerMessage>, connection: Flow<연결 상태>
 │   ├── WebSocketTransport.kt     OkHttp 구현. 재연결 규칙은 PROTOCOL.md 3절(4401·4409는 재연결 안 함)
-│   ├── FakeSessionTransport.kt   서버 없이 요청·위치·종료를 흉내 낸다(A4)
-│   └── ApiClient.kt              REST: 차 등록, 연결 코드 발급
+│   ├── FakeSessionTransport.kt   서버 없이 요청·위치·종료를 흉내 낸다(A4). `-Pmaejung.fakeServer=true` 빌드에서만 쓴다(`BuildConfig.FAKE_SERVER`)
+│   └── ApiClient.kt              REST: 차 등록, 연결 코드 발급. 서버가 꺼져 있으면 Manager가 5초마다 등록을 다시 시도한다
 ├── location/
 │   ├── LocationSource.kt         인터페이스: locations: Flow<Fix>
 │   ├── AndroidLocationSource.kt  LocationManager(GPS_PROVIDER), minTime 3초, minDistance 0

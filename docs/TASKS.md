@@ -79,7 +79,7 @@
   - Nearby 도중 앱을 강제 종료(`adb shell am force-stop com.maejung`)하고 다시 켜도 실내등이 원래 값으로 돌아오는지(Prefs의 `lightBefore`) A5에서 확인한다.
 - [x] **A4. 가짜 서버로 한 바퀴** (11/07 완료: 홈 화면 "가짜 요청 받기" → 수락 → 탑승자가 학원에서 2초 간격 15단계로 접근 → 34m에서 Nearby·실내등 ON → Virtual Console RR 문 열고 닫기 → Ended(boarded)·실내등 OFF 복구 → 3초 뒤 Idle. 로그 `adb logcat -s CarSession`) — `FakeSessionTransport` + D1 좌표로 요청 → 승인 → 접근 → 실내등 → 문 열고 닫기 → boarded.
   - 완료 기준: 서버 없이 에뮬레이터에서 전체 흐름이 보이고, 끝나면 실내등이 원래 값으로 돌아감.
-- [ ] **A5. 실제 서버 연결** — `WebSocketTransport`, `ApiClient`, 차 등록·토큰 저장, 가족 연결 코드 화면, `session.state` 처리.
+- [x] **A5. 실제 서버 연결** — `WebSocketTransport`, `ApiClient`, 차 등록·토큰 저장, 가족 연결 코드 화면, `session.state` 처리. 11/07 완료: 로컬 서버 + `scripts/fake-rider.mjs`(폰 대신)로 코드 발급 → 페어링(차에 "민지 연결됨") → 요청 → 수락 → 위치 양방향 → 34m Nearby·실내등 ON·폰에 `peer.light on` → RR 문 → 양쪽 `session.ended(boarded)`. Nearby 중 서버를 껐다 켜자 차가 다시 붙어 `session.state none` → Ended(peer_lost)·실내등 OFF 복구. 차 토큰은 Prefs에 남아 재등록 없음.
   - 완료 기준: 로컬 서버에 붙어 코드 발급. 서버를 껐다 켜면 재연결 후 `session.state none`을 받아 진행 중 세션이 Ended(peer_lost)로 정리되고 실내등이 복구됨.
 - [ ] **A6. 음성** — `PleosVoiceIO`(말하기는 Pleos TTS ON_DEVICE, 듣기는 SpeechRecognizer). 스파이크 `pleosTts()` 참고.
   - 완료 기준: 요청 시 TTS 안내가 나옴. STT가 되면 "응"으로 승인됨.

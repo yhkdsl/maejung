@@ -4,11 +4,16 @@ import android.location.Location
 import android.util.Log
 import com.maejung.location.Fix
 import com.maejung.location.LocationSource
+import com.maejung.net.ApiClient
+import com.maejung.net.ConnectionState
 import com.maejung.net.SessionTransport
 import com.maejung.protocol.LocationUpdate
+import com.maejung.protocol.PairingCodeIssued
+import com.maejung.protocol.PairingCompleted
 import com.maejung.protocol.PeerLocation
 import com.maejung.protocol.SessionState
 import com.maejung.protocol.SessionStates
+import com.maejung.store.FamilyMember
 import com.maejung.store.Prefs
 import com.maejung.vehicle.VehicleSignals
 import com.maejung.voice.VoiceIO
@@ -33,6 +38,8 @@ class CarSessionManager(
     private val location: LocationSource,
     private val voice: VoiceIO,
     private val prefs: Prefs,
+    /** null이면 가짜 서버로 돈다(등록·연결 코드 없음) */
+    private val api: ApiClient?,
 ) {
     private val events = Channel<CarEvent>(Channel.UNLIMITED)
     private val _session = MutableStateFlow(CarSession(lightBefore = prefs.lightBefore))
@@ -41,15 +48,35 @@ class CarSessionManager(
     private val _carFix = MutableStateFlow<Fix?>(null)
     val carFix: StateFlow<Fix?> = _carFix.asStateFlow()
 
+    val connection: StateFlow<ConnectionState> = transport.connection
+
+    private val _family = MutableStateFlow(prefs.family)
+    val family: StateFlow<List<FamilyMember>> = _family.asStateFlow()
+
+    /** 새 가족이 연결되면 홈 화면에 잠깐 보여줄 이름 */
+    private val _pairedNotice = MutableStateFlow<String?>(null)
+    val pairedNotice: StateFlow<String?> = _pairedNotice.asStateFlow()
+
     private var peer: PeerLocation? = null
     private var sharingJob: Job? = null
     private var endedJob: Job? = null
     private var started = false
 
-    fun start(token: String) {
+    fun start() {
         if (started) return
         started = true
         scope.launch { for (event in events) process(event) }
+        scope.launch {
+            // 4401: 서버 비밀키가 바뀌어 토큰이 무효다. 다시 등록하고, 이전 가족 연결은 지운다(PROTOCOL.md 3절)
+            transport.connection.collect {
+                if (it == ConnectionState.UNAUTHORIZED && api != null) {
+                    Log.w(TAG, "토큰 무효, 차를 다시 등록합니다")
+                    prefs.clearVehicle()
+                    _family.value = emptyList()
+                    transport.connect(registerVehicle())
+                }
+            }
+        }
         scope.launch { transport.incoming.collect { events.send(CarEvent.Server(it)) } }
         scope.launch { vehicle.gear.collect { events.send(CarEvent.GearChanged(it)) } }
         scope.launch { vehicle.doors.collect { events.send(CarEvent.Door(it.door, it.open)) } }
@@ -61,7 +88,39 @@ class CarSessionManager(
         }
         scope.launch { events.send(CarEvent.CabinLight(vehicle.readCabinLight())) }
         location.start()
-        transport.connect(token)
+        scope.launch {
+            val token = if (api == null) "fake" else prefs.vehicleToken ?: registerVehicle()
+            transport.connect(token)
+        }
+    }
+
+    /** 서버가 꺼져 있으면 붙을 때까지 5초마다 다시 시도한다 */
+    private suspend fun registerVehicle(): String {
+        val api = requireNotNull(api)
+        while (true) {
+            val registered = runCatching { api.registerVehicle() }
+                .onFailure { Log.w(TAG, "차 등록 실패, 5초 뒤 다시: ${it.message}") }
+                .getOrNull()
+            if (registered != null) {
+                prefs.vehicleToken = registered.vehicleToken
+                Log.i(TAG, "차 등록 완료 ${registered.vehicleId}")
+                return registered.vehicleToken
+            }
+            delay(REGISTER_RETRY_MS)
+        }
+    }
+
+    /** 홈 화면 "가족 연결" 버튼. 6자리 코드와 만료 시각(밀리초) */
+    suspend fun issuePairingCode(): PairingCodeIssued? {
+        val api = api ?: return null
+        val token = prefs.vehicleToken ?: return null
+        return runCatching { api.issuePairingCode(token) }
+            .onFailure { Log.w(TAG, "연결 코드 발급 실패: ${it.message}") }
+            .getOrNull()
+    }
+
+    fun clearPairedNotice() {
+        _pairedNotice.value = null
     }
 
     /** 위치 퍼미션을 늦게 받았을 때 다시 구독한다 */
@@ -91,6 +150,12 @@ class CarSessionManager(
         }
         // 탑승자 위치가 오면 거리를 다시 계산해 넣는다(머신은 거리를 이벤트로만 받는다)
         val message = (event as? CarEvent.Server)?.received?.message
+        // 가족 연결은 세션과 관계없어서 머신을 거치지 않는다
+        if (message is PairingCompleted) {
+            prefs.addFamily(FamilyMember(message.riderId, message.riderName))
+            _family.value = prefs.family
+            _pairedNotice.value = message.riderName
+        }
         if (message is PeerLocation) {
             peer = message
             events.send(CarEvent.Distance(distance()))
@@ -171,5 +236,6 @@ class CarSessionManager(
         const val TAG = "CarSession"
         const val HEARTBEAT_MS = 3_000L
         const val ENDED_SHOW_MS = 3_000L
+        const val REGISTER_RETRY_MS = 5_000L
     }
 }

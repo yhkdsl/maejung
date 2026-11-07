@@ -12,7 +12,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.maejung.net.ConnectionState
 import com.maejung.session.Phase
 import com.maejung.ui.CarViewModel
 import com.maejung.ui.EndedScreen
@@ -41,11 +40,16 @@ class MainActivity : ComponentActivity() {
                 Surface {
                     val session by viewModel.session.collectAsStateWithLifecycle()
                     val connection by viewModel.connection.collectAsStateWithLifecycle()
+                    val family by viewModel.family.collectAsStateWithLifecycle()
+                    val pairingCode by viewModel.pairingCode.collectAsStateWithLifecycle()
+                    val pairingFailed by viewModel.pairingFailed.collectAsStateWithLifecycle()
+                    val pairedName by viewModel.pairedNotice.collectAsStateWithLifecycle()
                     when (val phase = session.phase) {
                         Phase.Idle -> HomeScreen(
-                            state = HomeUiState(connected = connection == ConnectionState.CONNECTED),
-                            onPairClick = {},
-                            onFakeRequest = viewModel::fakeRequest,
+                            state = HomeUiState(connection, family, pairingCode, pairingFailed, pairedName),
+                            onPairClick = viewModel::requestPairingCode,
+                            onPairingClose = viewModel::closePairingCode,
+                            onFakeRequest = if (viewModel.isFake) viewModel::fakeRequest else null,
                         )
                         is Phase.Requested -> RequestScreen(phase.riderName, viewModel::accept, viewModel::reject)
                         is Phase.Sharing -> SharingScreen(phase.riderName, session.distanceM, nearby = false, lightOn = false, viewModel::end)

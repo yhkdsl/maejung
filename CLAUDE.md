@@ -82,7 +82,7 @@ maejung/
 ## 현재 상태
 
 - `app/src/main/java/com/maejung/spike/VehicleSpikeActivity.kt`: SDK 스파이크. 조회·구독·제어, 외부 통신(HTTPS, WebSocket), 탑승 신호(기어, 문, 착석, 벨트), 실내등 확인 완료(docs/DESIGN.md 7절). 각성·바다 연출과 창문 제어 버튼은 이전 컨셉 검증 기록이다.
-- 11/07: 서버(`server/`, 테스트 34개), 공용 메시지 모듈(`protocol/`, 테스트 9개), 차 앱 골격(A1, Compose 홈 화면), 상태 머신(A2, 테스트 41개), 차량 신호(A3)와 가짜 서버로 한 바퀴(A4, 에뮬레이터 확인) 완료. 다음은 A5(실제 서버 연결)·A8(알림·길안내). 폰 앱(P1~P4)은 별도 세션으로 병렬 진행 예정.
+- 11/07: 서버(`server/`, 테스트 34개), 공용 메시지 모듈(`protocol/`, 테스트 9개), 차 앱 골격(A1, Compose 홈 화면), 상태 머신(A2, 테스트 41개), 차량 신호(A3)와 가짜 서버로 한 바퀴(A4, 에뮬레이터 확인), 실제 서버 연결(A5, 로컬 서버로 전체 흐름·서버 재시작 확인) 완료. 다음은 A8(헤드업 알림·길안내·포그라운드 서비스). 폰 앱(P1~P4)은 별도 세션으로 병렬 진행 예정.
 - 사용자는 2026-11-03 채팅으로 42dot SDK 라이선스에 동의했고, Pleos Connect Emulator 이미지가 설치되어 있다.
 
 ## 에뮬레이터 실행
@@ -95,6 +95,9 @@ maejung/
 - 런타임 퍼미션은 `adb shell pm grant --user 10 com.maejung <퍼미션>`(차 에뮬레이터 앱은 사용자 10).
 - 위치 주입: `adb emu geo fix <경도> <위도>`. 앱의 LocationManager에는 들어가지만, 내장 내비 앱은 이 값을 쓰지 않고 자체 기본 위치를 쓴다.
 - 호스트 PC의 로컬 서버는 에뮬레이터에서 `10.0.2.2:8080`.
+- 차 앱 로그: `adb logcat -s CarSession WebSocketTransport`(상태 전이와 효과가 한 줄씩 찍힌다).
+- **폰 없이 끝까지 돌려 보기**: 로컬 서버를 띄우고(`cd server && ./gradlew bootRun`), 차 앱 홈에서 "가족 연결"로 6자리 코드를 받은 뒤 `node scripts/fake-rider.mjs <코드>`를 실행한다. 페어링 → 요청 → (차에서 수락) → 학원에서 차까지 2초 간격으로 걸어온다. 차 위치는 `adb emu geo fix 127.06030 37.49950`, 탑승은 Virtual Console BODY 패널 RR 문 열고 닫기.
+- 서버 없이 차 앱만 볼 때: `./gradlew :app:assembleDebug -Pmaejung.fakeServer=true`로 빌드하면 홈에 "가짜 요청 받기" 버튼이 생긴다.
 
 ## 빌드
 

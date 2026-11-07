@@ -18,6 +18,8 @@ android {
     compileSdk = 35
 
     defaultConfig {
+        // 서버 없이 흐름만 볼 때: ./gradlew :app:assembleDebug -Pmaejung.fakeServer=true
+        buildConfigField("boolean", "FAKE_SERVER", (findProperty("maejung.fakeServer") == "true").toString())
         applicationId = "com.maejung"
         minSdk = 28
         targetSdk = 34

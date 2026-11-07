@@ -3,6 +3,8 @@ package com.maejung.store
 import android.content.Context
 import com.maejung.vehicle.CabinSwitch
 
+data class FamilyMember(val riderId: String, val riderName: String)
+
 /** 앱이 죽었다 살아나도 남아야 하는 값 */
 class Prefs(context: Context) {
     private val prefs = context.getSharedPreferences("maejung", Context.MODE_PRIVATE)
@@ -16,8 +18,24 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_VEHICLE_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_VEHICLE_TOKEN, value).apply()
 
+    /** 연결된 가족. `riderId\triderName` 줄 목록으로 둔다 */
+    var family: List<FamilyMember>
+        get() = prefs.getString(KEY_FAMILY, null).orEmpty().lines().filter { it.contains('\t') }
+            .map { FamilyMember(it.substringBefore('\t'), it.substringAfter('\t')) }
+        set(value) = prefs.edit().putString(KEY_FAMILY, value.joinToString("\n") { "${it.riderId}\t${it.riderName}" }).apply()
+
+    fun addFamily(member: FamilyMember) {
+        family = family.filterNot { it.riderId == member.riderId } + member
+    }
+
+    /** 차가 다시 등록되면 이전 가족 연결은 쓸 수 없다(PROTOCOL.md 3절 4401) */
+    fun clearVehicle() {
+        prefs.edit().remove(KEY_VEHICLE_TOKEN).remove(KEY_FAMILY).apply()
+    }
+
     private companion object {
         const val KEY_LIGHT_BEFORE = "lightBefore"
         const val KEY_VEHICLE_TOKEN = "vehicleToken"
+        const val KEY_FAMILY = "family"
     }
 }
