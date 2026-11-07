@@ -26,6 +26,8 @@ android {
 
 dependencies {
     implementation("ai.pleos.playground:Vehicle:2.3.2")
+    implementation("ai.pleos.playground:NaviHelper:3.0.5")
+    implementation("ai.pleos.playground:TextToSpeech:3.3.1")
     // 차량에 GMS가 없어 FCM 대신 WebSocket으로 요청을 받는다
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

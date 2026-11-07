@@ -52,6 +52,7 @@ maejung/
 - **서버는 직접 만든다**(2026-11-06). Eventoday 백엔드와 같은 Kotlin 2.0.21 / Spring Boot 3.4.5 / Java 21 / Docker + Railway. DB 없이 메모리에만 세션·위치를 둔다. Supabase는 검토 후 쓰지 않기로 했다.
 - 차에는 GMS가 없어 FCM과 Google Maps를 못 쓴다. 요청은 WebSocket으로 받고, 1차 화면에는 지도 없이 거리·방향·ETA만 보여준다.
 - 로그인 대신 차 화면의 6자리 연결 코드 + 서버 서명 토큰.
+- **운전자 쪽 흐름은 알림과 음성으로만 진행한다**(2026-11-07). 아이의 요청이 지금 앞에 있는 앱(내비 등) 위에 헤드업 알림 + 음성으로 오고, 버튼이나 음성("응"/"아니")으로 답한다. 수락 시 차와 아이가 500m 이상이면 내비 길안내를 자동으로 시작한다. 마중 앱은 포그라운드 서비스로 뒤에서 계속 동작한다.
 - 차량 제어는 실내등 하나만 쓴다. 탑승자가 50m 안에 오고 기어가 P면 실내등을 켜고, 끝나면 켜기 전 상태로 되돌린다(비상등은 SDK에 API가 없다). 기어·문·좌석은 읽기만 한다.
 - 대기 모드(화면·공조 절약)와 약속 색 앰비언트는 사용자가 빼기로 했다(2026-11-06).
 - 수익 모델의 "대기 중 주변 혜택"은 기획서에만 있고 1차 구현 범위가 아니다.
@@ -68,8 +69,9 @@ maejung/
 
 ## Pleos SDK 제약
 
-- 바로 사용 가능: Vehicle State(조회), NaviHelper
-- 준비 중(신청 불가): Vehicle Control, FusedLocation, TextToSpeech, SpeechToText
+- Playground 신청 화면에서는 Vehicle State·NaviHelper만 바로 사용 가능, Vehicle Control·FusedLocation·TextToSpeech·SpeechToText는 "준비 중"으로 나온다.
+- 하지만 공개 Maven에 NaviHelper 3.0.5, TextToSpeech 3.3.1, SpeechToText 3.3.1, FusedLocation 1.1.3이 있고 에뮬레이터에서 동작한다(11/07 확인: NaviHelper 경로·ETA, TTS ON_DEVICE). 상세는 docs/DESIGN.md 5~7절.
+- 에뮬레이터에 안드로이드 기본 TTS 엔진이 없다. 음성 출력은 Pleos TTS(`Mode.ON_DEVICE`)를 쓴다.
   → 음성은 Android `TextToSpeech`/`SpeechRecognizer`, 위치는 `LocationManager`로 구현하고 인터페이스로 감싸 SDK가 열리면 교체한다.
 - 실내등·앰비언트 set에는 `CONTROL_CAR_LIGHTS`가 필요하다(문서에는 CAR_LIGHTS만 적혀 있는 경우가 있음). 앰비언트·내기순환은 차량 전체 영역이라 캐퍼빌리티가 준 영역으로 호출한다.
 - `CAR_DOORS`, `CAR_SEATS`는 보호 수준 normal.
@@ -89,7 +91,9 @@ maejung/
 - 실행: `~/Library/Android/sdk/emulator/emulator -avd Pleos_Connect_v2_1 -no-snapshot-load` (백그라운드로)
 - 설치: `adb install -r app/build/outputs/apk/debug/app-debug.apk` (`-q` 옵션은 에뮬레이터가 거부한다)
 - Virtual Console: `adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`. 브라우저 폭이 좁으면 BODY 패널(문)이 잘리니 1600px 이상으로 본다. 실내등 상태는 콘솔에 표시되지 않는다.
-- 화면 조작·로그 확인: `scripts/tap.sh "버튼 텍스트 정규식" [대기초]`, `scripts/log.sh`. `uiautomator dump`로 버튼 좌표와 로그 TextView를 읽는다. 버튼 텍스트에 괄호·점이 있으면 정규식으로 이스케이프한다.
+- 화면 조작·로그 확인: `scripts/tap.sh "버튼 텍스트 정규식" [대기초]`, `scripts/log.sh`. `uiautomator dump`로 버튼 좌표와 로그 TextView를 읽는다. 버튼 텍스트에 괄호·점이 있으면 정규식으로 이스케이프한다. 화면이 바쁘면 dump가 실패("could not get idle state")하니, 로그는 `adb logcat -s MaejungSpike`로 본다. 다른 앱(내비 등)이 앞에 나와 있으면 탭이 그 앱으로 가니 `am start`로 먼저 앞으로 가져온다.
+- 런타임 퍼미션은 `adb shell pm grant --user 10 com.maejung <퍼미션>`(차 에뮬레이터 앱은 사용자 10).
+- 위치 주입: `adb emu geo fix <경도> <위도>`. 앱의 LocationManager에는 들어가지만, 내장 내비 앱은 이 값을 쓰지 않고 자체 기본 위치를 쓴다.
 - 호스트 PC의 로컬 서버는 에뮬레이터에서 `10.0.2.2:8080`.
 
 ## 빌드

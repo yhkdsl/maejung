@@ -23,9 +23,28 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.io.IOException
+import ai.pleos.playground.navi.constants.NaviErrorCode
+import ai.pleos.playground.navi.data.DrivingInfo
+import ai.pleos.playground.navi.data.RouteInfo
+import ai.pleos.playground.navi.data.RouteStartInfo
+import ai.pleos.playground.navi.helper.NaviHelper
+import ai.pleos.playground.navi.helper.listener.NaviHelperEventListener
+import ai.pleos.playground.tts.constant.ErrorType
+import ai.pleos.playground.tts.constant.Mode
+import ai.pleos.playground.tts.listener.OnInitializeListener
+import ai.pleos.playground.tts.listener.EventListener as PleosTtsEventListener
+import ai.pleos.playground.tts.TextToSpeech as PleosTextToSpeech
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.util.Log
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -53,6 +72,9 @@ class VehicleSpikeActivity : Activity() {
     }
 
     private val http = OkHttpClient()
+    private lateinit var naviHelper: NaviHelper
+    private var tts: TextToSpeech? = null
+    private var pleosTts: PleosTextToSpeech? = null
     private val passengerSeats = listOf(SeatValue.ROW_1_RIGHT, SeatValue.ROW_2_LEFT, SeatValue.ROW_2_RIGHT).map { SeatArea(it) }
 
     private val gearListener = object : GearSelectionListener {
@@ -69,6 +91,14 @@ class VehicleSpikeActivity : Activity() {
         super.onCreate(savedInstanceState)
         vehicle = Vehicle(this)
         vehicle.initialize()
+        naviHelper = NaviHelper(applicationContext)
+        naviHelper.initialize(
+            onConnected = {
+                naviHelper.addListener(naviListener)
+                log("NaviHelper 연결됨")
+            },
+            onFailed = { log("NaviHelper 연결 실패: $it") },
+        )
 
         logView = TextView(this).apply { textSize = 14f; setPadding(24, 24, 24, 24) }
         val root = LinearLayout(this).apply {
@@ -83,6 +113,12 @@ class VehicleSpikeActivity : Activity() {
             addView(button("7. 탑승 감지 구독 (기어, 문, 착석, 벨트)") { boarding() })
             addView(button("8. 실내등 켜기") { cabinLight(LightSwitch.ON) })
             addView(button("9. 실내등 끄기") { cabinLight(LightSwitch.OFF) })
+            addView(button("10. 위치 받기") { location() })
+            addView(button("11. 음성 확인 (TTS, STT)") { voice() })
+            addView(button("11-1. Pleos TTS (ON_DEVICE)") { pleosTts() })
+            addView(button("12. 탑승자 위치로 길안내") { naviRoute() })
+            addView(button("13. 길안내 취소") { naviHelper.cancelRoute(); log("길안내 취소 요청") })
+            addView(button("14. 요청 알림 (5초 뒤)") { delayedAlert() })
             addView(button("로그 지우기") { logView.text = "" })
             addView(ScrollView(context).apply { addView(logView) })
         }
@@ -94,6 +130,11 @@ class VehicleSpikeActivity : Activity() {
         vehicle.getOdometer().unregisterTripCurrentDrivingTime(drivingTimeListener)
         vehicle.getBrake().unregisterBrakePedalStatus(brakeListener)
         vehicle.release()
+        getSystemService(LocationManager::class.java).removeUpdates(locationListener)
+        naviHelper.removeListener(naviListener)
+        naviHelper.release()
+        tts?.shutdown()
+        pleosTts?.release()
         super.onDestroy()
     }
 
@@ -275,6 +316,95 @@ class VehicleSpikeActivity : Activity() {
         )
     }
 
+    /** C1: 에뮬레이터 `emu geo fix`로 넣은 좌표가 LocationManager로 들어오는지 */
+    @SuppressLint("MissingPermission")
+    private fun location() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.RECORD_AUDIO), 1)
+            log("위치 퍼미션 요청")
+            return
+        }
+        val lm = getSystemService(LocationManager::class.java)
+        log("위치 제공자 = ${lm.allProviders}, GPS 켜짐 = ${lm.isProviderEnabled(LocationManager.GPS_PROVIDER)}")
+        log("마지막 위치 = ${lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let { "${it.latitude}, ${it.longitude}" }}")
+        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 3000L, 0f, locationListener)
+        log("GPS 위치 구독 등록")
+    }
+
+    private val locationListener = LocationListener { loc -> log("[구독] 위치 = ${loc.latitude}, ${loc.longitude} (±${loc.accuracy}m)") }
+
+    /** V1: 한국어 TTS가 되는지, 음성 인식기가 있는지 */
+    private fun voice() {
+        log("음성 인식 가능 = ${SpeechRecognizer.isRecognitionAvailable(this)}")
+        tts = TextToSpeech(this) { status ->
+            if (status != TextToSpeech.SUCCESS) {
+                log("TTS 초기화 실패: $status")
+                return@TextToSpeech
+            }
+            val lang = tts?.setLanguage(Locale.KOREAN)
+            log("TTS 한국어 설정 결과 = $lang (0 이상이면 지원, -1 데이터 없음, -2 미지원), 엔진 = ${tts?.defaultEngine}")
+            tts?.speak("민지가 데리러 와 달래요. 갈까요?", TextToSpeech.QUEUE_FLUSH, null, "maejung-test")
+        }
+    }
+
+    /** V1: 안드로이드 기본 TTS 엔진이 없을 때 Pleos TTS SDK의 차량 내장 엔진으로 읽는다 */
+    private fun pleosTts() {
+        val engine = pleosTts ?: PleosTextToSpeech(applicationContext, Mode.ON_DEVICE).also { pleosTts = it }
+        engine.initialize(object : OnInitializeListener {
+            override fun onSuccess() {
+                log("Pleos TTS 초기화 성공")
+                engine.addEventListener(object : PleosTtsEventListener {
+                    // onReady는 발화가 끝날 때마다 다시 오므로 여기서 speak하면 무한 반복된다
+                    override fun onReady() = log("[TTS] 준비됨")
+                    override fun onStart() = log("[TTS] 재생 시작")
+                    override fun onUpdatedRms(rms: Double) = Unit
+                    override fun onDone() = log("[TTS] 재생 완료")
+                    override fun onStop() = log("[TTS] 중지")
+                    override fun onError(errorType: ErrorType) = log("[TTS] 오류 $errorType")
+                })
+                engine.setLocale(Locale.KOREA)
+                engine.speak("민지가 데리러 와 달래요. 갈까요?")
+            }
+            override fun onFailure(errorType: ErrorType) = log("Pleos TTS 초기화 실패: $errorType")
+        })
+    }
+
+    /** N1: 탑승자 좌표(데모의 학원 출입구)를 목적지로 넣으면 남은 거리·시간이 오는지 */
+    private fun naviRoute() {
+        naviHelper.requestRoute(
+            RouteInfo(
+                latitude = 37.49830,
+                longitude = 127.06280,
+                poiName = "민지 위치",
+                poiId = "",
+                address = "",
+                poiSubId = "0",
+            ),
+        )
+        log("길안내 요청: 37.49830, 127.06280")
+    }
+
+    private val naviListener = object : NaviHelperEventListener {
+        override fun onRouteStarted(routeStartInfo: RouteStartInfo) = log("[내비] 경로 시작 $routeStartInfo")
+        override fun onRoutingCompleted() = log("[내비] 경로 탐색 완료")
+        override fun onDrivingInfo(drivingInfo: DrivingInfo) =
+            log("[내비] 남은 거리 ${drivingInfo.destination.distance}m, 시간 ${drivingInfo.destination.duration}")
+        override fun onRouteCancelled() = log("[내비] 경로 취소됨")
+        override fun onError(errorCode: NaviErrorCode) = log("[내비] 오류 $errorCode")
+    }
+
+    /** 다른 앱이 앞에 있을 때 헤드업 알림이 뜨는지 보려고 5초 뒤에 띄운다 */
+    private fun delayedAlert() {
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            log("알림 퍼미션 없음")
+        }
+        log("5초 뒤 요청 알림")
+        logView.postDelayed({
+            PickupAlert.show(applicationContext, "민지")
+            log("요청 알림 표시")
+        }, 5000)
+    }
+
     private fun capabilities() {
         vehicle.getLight().checkAmbientLightBrightnessColorCapabilities(
             onComplete = { config, areas -> log("앰비언트 색 지원 영역 = ${areas.map { it.values.toList() }}, config = $config") },
@@ -287,6 +417,8 @@ class VehicleSpikeActivity : Activity() {
 
     private fun log(message: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.KOREA).format(Date())
+        // 화면이 바쁠 때 uiautomator dump가 실패하므로 logcat에도 남긴다(`adb logcat -s MaejungSpike`)
+        Log.i("MaejungSpike", message)
         runOnUiThread { logView.append("$time  $message\n") }
     }
 }

@@ -58,19 +58,32 @@ app/src/main/java/com/maejung/
 │   └── FixedLocationSource.kt    고정 좌표(C1이 실패하면 데모에 쓴다)
 ├── voice/
 │   ├── VoiceIO.kt                인터페이스: speak(text), listen(): String?
-│   └── AndroidVoiceIO.kt         TextToSpeech(Locale.KOREAN), SpeechRecognizer
+│   └── PleosVoiceIO.kt           말하기: Pleos TextToSpeech SDK `Mode.ON_DEVICE`(DESIGN.md 6절, 안드로이드 기본 TTS는 에뮬레이터에 엔진이 없음). 듣기: SpeechRecognizer
 ├── eta/
-│   └── EtaCalculator.kt          NaviHelper가 되면 navi, 아니면 직선거리 × 1.3 ÷ 5.6m/s(20km/h)
+│   └── EtaCalculator.kt          길안내 중이면 마지막 `onDrivingInfo` 값(`source: navi`), 아니면 직선거리 × 1.3 ÷ 5.6m/s(20km/h, `source: estimate`)
+├── navi/
+│   └── PickupNavigator.kt        NaviHelper로 탑승자 위치까지 길안내 시작(`requestRoute`)·취소(`cancelRoute`), `onDrivingInfo`를 EtaCalculator에 전달
+├── alert/
+│   ├── PickupNotifications.kt    요청 알림(수락·거절 버튼, 헤드업), 상태 알림(버튼 없음: "가까이 왔어요", "탑승 확인")
+│   └── PickupAlertReceiver.kt    알림 버튼 → CarSessionManager에 UserAccept·UserReject
+├── service/
+│   └── CarSessionService.kt      포그라운드 서비스. 세션 진행 중(Requested~Nearby) 앱이 화면 뒤에 있어도 위치 전송·탑승 감지가 멈추지 않게 한다
 ├── store/
 │   └── Prefs.kt                  vehicleId, vehicleToken, 연결된 가족 목록(riderId, riderName)
 └── ui/
     ├── HomeScreen.kt             연결 상태, 연결된 가족 목록, "가족 연결" 버튼(코드와 남은 시간 표시)
-    ├── RequestScreen.kt          요청 알림: 이름, 승인·거절 큰 버튼
+    ├── RequestScreen.kt          마중 앱이 앞에 있을 때의 요청 화면: 이름, 승인·거절 큰 버튼(다른 앱이 앞에 있으면 헤드업 알림이 대신한다)
     ├── SharingScreen.kt          거리, 방향 화살표, ETA, 실내등 상태, 종료 버튼 (Sharing·Nearby 공용)
     ├── EndedScreen.kt            종료 이유 문구 3초
     └── CarViewModel.kt           CarSessionManager.state를 구독만 한다
 ```
 
+- **운전자는 마중 앱 화면을 보지 않아도 된다.** 요청은 지금 앞에 있는 앱(내비, 음악 등) 위에 헤드업 알림으로 뜨고, 같은 내용을 음성으로도 묻는다. 수락 후 진행 안내도 버튼 없는 알림과 음성으로만 한다(2026-11-07 결정).
+- 헤드업 알림 규칙(에뮬레이터 확인, DESIGN.md 7절):
+  - 채널 중요도 `IMPORTANCE_HIGH`, 카테고리 `CATEGORY_MESSAGE`. `CATEGORY_CALL`로 하면 AAOS가 전화 수신처럼 초록·빨강 아이콘 버튼으로 바꿔 그려서 "수락/거절" 글자가 사라진다.
+  - 헤드업은 6~8초 뒤 알림 센터로 들어간다. 그래서 요청은 알림과 동시에 음성으로 묻고 음성 답을 기다린다. 알림 센터에 남은 알림의 버튼도 계속 동작한다.
+  - 새 요청을 띄우기 전에 같은 id의 알림을 `cancel`한다. 알림 센터에 이전 알림이 남아 있으면 갱신만 되고 헤드업으로 다시 뜨지 않는다.
+  - 퍼미션 `POST_NOTIFICATIONS`(런타임, 33 이상).
 - 연결과 세션은 **Application 범위의 `CarSessionManager`가 소유**한다. 화면 회전·Activity 재생성에 끊기지 않게 하기 위해서다. ViewModel은 구독과 사용자 입력 전달만 한다.
 - `spike/VehicleSpikeActivity.kt`는 검증 기록으로 남긴다. 런처는 `MainActivity`로 옮기고, 스파이크 activity는 `exported=false`로 바꾼다.
 - `pairing.completed`는 머신을 거치지 않는다. Manager가 Prefs의 가족 목록에 추가하고 HomeScreen에 "{이름} 연결됨"을 3초 보여준다.
@@ -112,7 +125,10 @@ app/src/main/java/com/maejung/
 
 ### 3.3 효과 (`CarEffect`)
 
-`Send(message)`, `SetCabinLight(value: CabinSwitch)`, `SaveLightBefore(value: CabinSwitch?)`, `Speak(text)`, `Listen`, `StartLocationSharing`, `StopLocationSharing`.
+`Send(message)`, `SetCabinLight(value: CabinSwitch)`, `SaveLightBefore(value: CabinSwitch?)`, `Speak(text)`, `Listen`, `StartLocationSharing`, `StopLocationSharing`, `ShowRequestAlert(riderName)`, `DismissRequestAlert`, `Notify(text)`(버튼 없는 헤드업), `StartNavigation(lat, lng, riderName)`, `StopNavigation`.
+
+- 머신 컨텍스트에 `peer`(탑승자 마지막 좌표)와 `navStarted: Boolean`을 더 둔다. `peer.location` 이벤트가 올 때마다 갱신한다.
+- **길안내 규칙**: Sharing에서 처음으로 거리가 계산됐을 때 **500m 이상이면** `StartNavigation(peer)` 한 번, `navStarted = true`. 500m 미만(학원 앞 대기)이면 길안내하지 않는다. 세션 중에는 다시 걸지 않는다(아이가 걸어서 움직이는 정도는 무시). 종료로 가는 모든 전이에서 `navStarted`면 `StopNavigation`.
 
 - 실내등 저장·복구 판단은 **머신이 한다.** 효과 실행기는 `SetCabinLight`를 그대로 SDK 호출로 바꿀 뿐이다.
 - 복구는 두 가지다.
@@ -124,21 +140,23 @@ app/src/main/java/com/maejung/
 
 | 현재 | 이벤트 | 다음 | 효과 |
 |---|---|---|---|
-| Idle | `pickup.requested` | Requested | Speak("{이름}가 데리러 와 달래요. 갈까요?"), Listen |
-| Requested | UserAccept(버튼, 또는 음성 "응/그래/갈게/좋아" 포함) | Sharing | Send(`pickup.accept`), StartLocationSharing |
-| Requested | UserReject(버튼, 또는 음성 "아니/안 돼/싫어" 포함) | Ended(rejected) | Send(`pickup.reject`) |
-| Sharing | 조건 `distance ≤ 50 && gear == P` 충족(Distance 또는 Gear 이벤트) | Nearby | `lightInfo.supportsOn`이고 `lightBefore == null`이면: `lightBefore = lightInfo.current ?: OFF`, SaveLightBefore(lightBefore), SetCabinLight(ON), Send(`vehicle.light on`). 공통: Speak("{이름}가 가까이 왔어요") |
+| Idle | `pickup.requested` | Requested | ShowRequestAlert, Speak("{이름}가 데리러 와 달래요. 갈까요?"), Listen |
+| Requested | UserAccept(알림·화면 버튼, 또는 음성 "응/그래/갈게/좋아" 포함) | Sharing | DismissRequestAlert, Send(`pickup.accept`), StartLocationSharing |
+| Requested | UserReject(알림·화면 버튼, 또는 음성 "아니/안 돼/싫어" 포함) | Ended(rejected) | DismissRequestAlert, Send(`pickup.reject`) |
+| Sharing | 첫 Distance 계산, `distance ≥ 500 && !navStarted` | Sharing | StartNavigation(peer), `navStarted = true`, Speak("{이름}에게 가는 길을 안내할게요") |
+| Sharing | 조건 `distance ≤ 50 && gear == P` 충족(Distance 또는 Gear 이벤트) | Nearby | `lightInfo.supportsOn`이고 `lightBefore == null`이면: `lightBefore = lightInfo.current ?: OFF`, SaveLightBefore(lightBefore), SetCabinLight(ON), Send(`vehicle.light on`). 공통: Notify("{이름}가 가까이 왔어요"), Speak(같은 문장) |
 | Nearby | `distance > 70 \|\| distance == null \|\| gear != P` | Sharing | 복구(공유 유지) |
 | Nearby | Door(승객 문, 1) | Nearby | openedDoors에 추가 |
-| Nearby | Door(openedDoors에 있는 문, 0) 그리고 `gear == P && distance ≤ 30` | Ended(boarded) | Send(`session.boarded`), 복구(종료), StopLocationSharing, Speak("{이름} 탑승 확인, 위치공유를 끝낼게요") |
-| Requested·Sharing·Nearby | UserEnd | Ended(manual) | Send(`session.end manual`), 복구(종료), StopLocationSharing |
-| Requested·Sharing·Nearby | `session.ended(reason)` | Ended(reason) | 복구(종료), StopLocationSharing |
-| Requested·Sharing·Nearby | `session.state none` | Ended(peer_lost) | 복구(종료), StopLocationSharing |
+| Nearby | Door(openedDoors에 있는 문, 0) 그리고 `gear == P && distance ≤ 30` | Ended(boarded) | Send(`session.boarded`), 종료 공통, Notify·Speak("{이름} 탑승 확인, 위치공유를 끝낼게요") |
+| Requested·Sharing·Nearby | UserEnd | Ended(manual) | Send(`session.end manual`), 종료 공통 |
+| Requested·Sharing·Nearby | `session.ended(reason)` | Ended(reason) | 종료 공통 |
+| Requested·Sharing·Nearby | `session.state none` | Ended(peer_lost) | 종료 공통 |
 | Idle | `session.state requested` | Requested | (음성 없음) |
 | Idle·Requested | `session.state sharing` | Sharing | StartLocationSharing |
 | Ended | EndedTimeout | Idle | - |
 | Ended | `pickup.requested` | Requested | 위 Idle 행과 같음 |
 
+- **종료 공통** = DismissRequestAlert(Requested에서 끝날 때), 복구(종료), StopLocationSharing, `navStarted`면 StopNavigation.
 - 표에 없는 조합은 상태를 바꾸지 않고 효과도 없다(예: Idle에서 Door, Sharing에서 UserAccept).
 - Nearby에 들어오기 전에 열린 문은 세지 않는다. Nearby를 나가면 openedDoors를 비운다.
 - `lightInfo.supportsOn`이 false면 실내등 효과와 `vehicle.light`를 모두 생략한다. 나머지 흐름은 같다.
@@ -156,7 +174,9 @@ app/src/main/java/com/maejung/
 ## 5. 퍼미션
 
 - 매니페스트(현재 있는 것): CAR_DRIVE, CAR_CLIMATE, CAR_LIGHTS, CAR_WINDOWS, CAR_DOORS, CAR_SEATS, CONTROL_CAR_CLIMATE, CONTROL_CAR_WINDOWS, CONTROL_CAR_LIGHTS, INTERNET.
-- **추가 필요**: `android.permission.ACCESS_FINE_LOCATION`, `RECORD_AUDIO`(STT). 둘 다 런타임 퍼미션이라 앱에서 요청한다. 에뮬레이터 검증 때는 `adb shell pm grant com.maejung android.permission.ACCESS_FINE_LOCATION`으로 미리 줄 수 있다.
+- **추가 필요**: `android.permission.ACCESS_FINE_LOCATION`, `RECORD_AUDIO`(STT). 둘 다 런타임 퍼미션이라 앱에서 요청한다. 에뮬레이터 검증 때는 `adb shell pm grant --user 10 com.maejung android.permission.ACCESS_FINE_LOCATION`으로 미리 줄 수 있다(**`--user 10` 필수**, 차 에뮬레이터 앱은 사용자 10에서 돈다).
+- Pleos SDK 퍼미션: `pleos.car.permission.TTS_SERVICE`(음성 출력), `NAVI_ROUTE`(내비 정보 조회), `NAVI_ROUTE_SEARCH`(길안내 시작·취소).
+- 알림·서비스: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`(서비스 `foregroundServiceType="location"`).
 - 1차 앱 본체에 필요 없는 창문·공조 제어 퍼미션은 A1에서 정리한다(스파이크만 쓰던 것).
 
 ## 6. 에뮬레이터 검증

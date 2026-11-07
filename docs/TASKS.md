@@ -10,14 +10,16 @@
 
 ## 0. 확인 작업 (결과에 따라 설계가 바뀐다)
 
-- [ ] **C1. 차 에뮬레이터 위치 주입**
+11/07 세 작업 모두 끝났다. 결과는 DESIGN.md 6·7절.
+
+- [x] **C1. 차 에뮬레이터 위치 주입** — 됨. `FixedLocationSource`는 필요 없다(테스트용으로만 둔다).
   - 스파이크에 "10. 위치 받기" 버튼을 추가해 `LocationManager.requestLocationUpdates(GPS_PROVIDER, 3000, 0f)`로 로그를 찍는다. 매니페스트에 `ACCESS_FINE_LOCATION`을 추가하고 `adb shell pm grant com.maejung android.permission.ACCESS_FINE_LOCATION`으로 허용한다.
   - `adb -s emulator-5554 emu geo fix 127.06030 37.49950`(경도, 위도 순서) 후 로그 확인.
   - 완료 기준: 주입한 좌표가 로그에 찍힘. 안 되면 CAR_APP.md 2절에 "데모는 `FixedLocationSource`(D1의 차 좌표)를 쓴다"를 적는다. 결과를 DESIGN.md 7절 표에 추가한다.
-- [ ] **N1. NaviHelper ETA**
+- [x] **N1. NaviHelper ETA** — 됨. 경로가 있을 때 `onDrivingInfo`로 남은 거리·시간을 받는다. 앱이 직접 경로를 거는 기능은 사용자 결정 대기.
   - 공식 문서(document.pleos.ai의 NaviHelper API 레퍼런스. 본문이 Dokka shadowRoot 안에 있어 브라우저로 열고 `shadowRoot.textContent`를 읽는다)에서 임의 좌표까지 ETA·거리를 받는 API가 있는지 확인하고, 있으면 스파이크로 호출한다.
   - 완료 기준: 되면 시그니처·의존성·퍼미션을 DESIGN.md 5절에 추가. 안 되면 CAR_APP.md 2절 `EtaCalculator`에 "추정값만 쓴다(`source: estimate`)"를 적는다.
-- [ ] **V1. 한국어 TTS·STT**
+- [x] **V1. 한국어 TTS·STT** — 말하기는 Pleos TTS ON_DEVICE로 됨(안드로이드 기본 TTS는 엔진 없음). 인식기는 있으나 실제 인식은 미확인 → A6에서 버튼 승인을 기본으로, 음성 승인은 되면 추가.
   - Pleos 에뮬레이터에서 `TextToSpeech` 초기화 후 `setLanguage(Locale.KOREAN)` 결과, `SpeechRecognizer.isRecognitionAvailable(context)`를 스파이크 버튼으로 확인.
   - 완료 기준: 결과를 DESIGN.md 7절 표에 추가. STT가 안 되면 CAR_APP.md 3.4의 음성 승인은 생략(버튼만), TTS가 안 되면 화면 문구만이라고 적는다.
 
@@ -43,7 +45,7 @@
 - [ ] **A1. 골격** — compileSdk 35, Compose 도입, `MaejungApp`·`MainActivity`(런처, distractionOptimized), 스파이크 activity `exported=false`, CAR_APP.md 2절 패키지와 인터페이스(빈 구현 가능), 퍼미션 정리(CAR_APP.md 5절).
   - 완료 기준: `./gradlew :app:assembleDebug` 성공, 에뮬레이터에서 HomeScreen이 뜸.
 - [ ] **A2. 상태 머신** — `CarSessionMachine`(CAR_APP.md 3.4 표 전부).
-  - 완료 기준: 표의 모든 행 + 아래 경우의 단위 테스트 통과(`./gradlew :app:testDebugUnitTest`): 50m 진입·70m 이탈 경계, Nearby 전에 열린 문 무시, 실내등 원래 ON·AUTOMATIC(복구 후 원래 값), `supportsOn=false`(실내등 효과·`vehicle.light` 없음), 종료 전이에서는 `vehicle.light`를 보내지 않음(Nearby→Sharing에서만 보냄), `lightBefore`가 이미 있으면 덮어쓰지 않음, `session.state none`으로 정리.
+  - 완료 기준: 표의 모든 행 + 아래 경우의 단위 테스트 통과(`./gradlew :app:testDebugUnitTest`): 길안내 500m 경계(이상이면 한 번만 시작, 미만이면 안 함, 종료 시 취소), 50m 진입·70m 이탈 경계, Nearby 전에 열린 문 무시, 실내등 원래 ON·AUTOMATIC(복구 후 원래 값), `supportsOn=false`(실내등 효과·`vehicle.light` 없음), 종료 전이에서는 `vehicle.light`를 보내지 않음(Nearby→Sharing에서만 보냄), `lightBefore`가 이미 있으면 덮어쓰지 않음, `session.state none`으로 정리.
 - [ ] **A3. 차량 신호** — `PleosVehicleSignals`(기어, 승객 문 3개, 실내등 캐퍼빌리티·현재 값·구독·set).
   - 완료 기준: Virtual Console로 기어·문을 바꾸면 화면(디버그 표시)에 반영, 실내등 ON/OFF 후 조회값 확인. 실내등 스위치는 구독하지 않고 앱 시작·Sharing 진입 때 조회한다(CAR_APP.md 3.2).
   - Nearby 도중 앱을 강제 종료(`adb shell am force-stop com.maejung`)하고 다시 켜도 실내등이 원래 값으로 돌아오는지(Prefs의 `lightBefore`) A5에서 확인한다.
@@ -51,8 +53,11 @@
   - 완료 기준: 서버 없이 에뮬레이터에서 전체 흐름이 보이고, 끝나면 실내등이 원래 값으로 돌아감.
 - [ ] **A5. 실제 서버 연결** — `WebSocketTransport`, `ApiClient`, 차 등록·토큰 저장, 가족 연결 코드 화면, `session.state` 처리.
   - 완료 기준: 로컬 서버에 붙어 코드 발급. 서버를 껐다 켜면 재연결 후 `session.state none`을 받아 진행 중 세션이 Ended(peer_lost)로 정리되고 실내등이 복구됨.
-- [ ] **A6. 음성** — `AndroidVoiceIO`. V1 결과에 따라 범위 조정.
+- [ ] **A6. 음성** — `PleosVoiceIO`(말하기는 Pleos TTS ON_DEVICE, 듣기는 SpeechRecognizer). 스파이크 `pleosTts()` 참고.
   - 완료 기준: 요청 시 TTS 안내가 나옴. STT가 되면 "응"으로 승인됨.
+- [ ] **A8. 알림·길안내·백그라운드** — `PickupNotifications`(스파이크 `spike/PickupAlert.kt` 참고), `PickupAlertReceiver`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙).
+  - 완료 기준: 내비 화면이 앞에 있을 때 요청이 오면 헤드업 알림이 뜨고 수락·거절이 동작. 차와 탑승자가 500m 이상이면 수락 후 길안내가 시작되고, 탑승 감지·수동 종료 시 길안내가 취소됨. 마중 앱이 화면 뒤에 있어도 위치 전송과 탑승 감지가 계속됨.
+  - 음성 승인 테스트는 실제 발화가 필요하다. 에뮬레이터에서 PC 마이크를 켜고 사용자에게 "응"이라고 말해 달라고 요청한다.
 - [ ] **A7. 위치·ETA** — `AndroidLocationSource`(C1 결과 반영, 안 되면 `FixedLocationSource`), heartbeat 전송(PROTOCOL.md 3.2), `EtaCalculator`(N1 결과 반영), `eta.update` 전송 규칙.
   - 완료 기준: 정차 상태로 3분 두어도 서버가 `peer_lost`로 끊지 않음. 탑승자 위치를 옮기면 SharingScreen의 거리·방향·ETA가 바뀜. 서버 로그에 `eta.update`가 30초 간격으로 찍힘.
 

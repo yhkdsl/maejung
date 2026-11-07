@@ -76,6 +76,7 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | Gear (`getGear`) | `registerGearSelection(GearSelectionListener)` → `onSelected(VehicleGear?)` | CAR_DRIVE | 탑승 판정 |
 | Door (`getDoor`) | `checkDoorPositionCapabilities(onComplete: (Map<DoorArea, AreaBounds<Int>>))`, `getCurrentDoorPosition(DoorArea, (Int?))`, `registerDoorPosition(DoorArea, DoorPositionListener)` → `onPositionUpdated(Int?)` | CAR_DOORS (normal) | 탑승 판정 |
 | Seat (`getSeat`) | `getCurrentSeatOccupancy(SeatArea, (Boolean?))`, `registerSeatOccupancy(SeatArea, SeatOccupancyListener)`, `registerSeatBeltBuckledState(SeatArea, SeatBeltBuckledStateListener)` | CAR_SEATS (normal) | 탑승 보조 신호 |
+| NaviHelper (`ai.pleos.playground:NaviHelper:3.0.5`) | `NaviHelper(context)` → `initialize(onConnected, onFailed)` → `addListener(NaviHelperEventListener)`. `requestRoute(RouteInfo(latitude, longitude, poiName, poiId, address, poiSubId))`, `cancelRoute()`. 콜백 `onRouteStarted(RouteStartInfo)`, `onDrivingInfo(DrivingInfo)`(`destination.distance` m, `destination.duration` 초), `onRouteCancelled()`, `onError(NaviErrorCode)`. 리스너는 필요한 것만 override | `NAVI_ROUTE`(조회), `NAVI_ROUTE_SEARCH`(requestRoute·cancelRoute) | ETA |
 | Light (`getLight`) | `checkCabinLightSwitchCapabilities(onComplete: (List<LightSwitch>))`, `getCabinLightSwitch(onComplete: (LightSwitch?))`, `setCabinLightSwitch(LightSwitch, onComplete: (LightSwitch?), onFailed)` | CAR_LIGHTS / CONTROL_CAR_LIGHTS | 실내등 차 찾기 |
 | Light (`getLight`) | (검증만, 사용 안 함) `setAmbientLightSwitch(area, LightSwitch, …)`, `setAmbientLightBrightnessColor(area, argb, …)`, `checkAmbientLightBrightnessColorCapabilities` | CAR_LIGHTS + CONTROL_CAR_LIGHTS | - |
 | HVAC (`getHVAC`) | (검증만, 사용 안 함) `getHvacTemperature`, `setHvacTemperature(area, Float, TemperatureUnit, …)`, `setHvacFanSpeed(area, Int, …)`, `setHvacRecirculation(area, Boolean, …)` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | - |
@@ -104,12 +105,16 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 
 | 기능 | 지금 | Pleos SDK 오픈 후 |
 |---|---|---|
-| 음성 출력 | `android.speech.tts.TextToSpeech` | TextToSpeech SDK |
-| 음성 인식 | `android.speech.SpeechRecognizer` | SpeechToText SDK |
-| 차 위치 | `LocationManager` | FusedLocation SDK |
+| 음성 출력 | **Pleos TextToSpeech SDK 3.3.1, `Mode.ON_DEVICE`**(11/07 확인). 에뮬레이터에 안드로이드 기본 TTS 엔진이 없어 `android.speech.tts.TextToSpeech`는 초기화 실패(-1) | 같음 |
+| 음성 인식 | `android.speech.SpeechRecognizer`(인식기 있음, 실제 인식은 미확인) | SpeechToText SDK(Maven에 3.3.1 있음) |
+| 차 위치 | `LocationManager`(GPS_PROVIDER, `emu geo fix` 동작 확인) | FusedLocation SDK(Maven에 1.1.3 있음) |
+| ETA | NaviHelper 경로가 있으면 `onDrivingInfo`, 없으면 직선거리 추정 | 같음 |
 | 요청 수신 | WebSocket(OkHttp, 마중 서버) | 변경 없음 (차에 GMS 없음) |
 
 `VoiceIO`, `LocationSource`를 인터페이스로 두고 구현체만 바꾼다.
+
+- Pleos SDK는 Playground 신청 화면에서 "준비 중"이지만, 공개 Maven(nexus-playground.pleos.ai)에 NaviHelper 3.0.5, TextToSpeech 3.3.1, SpeechToText 3.3.1, FusedLocation 1.1.3, LLM 2.1.3.2가 올라와 있고 문서도 있다.
+- **Pleos TTS 사용법**: `TextToSpeech(applicationContext, Mode.ON_DEVICE)` → `initialize(OnInitializeListener)` → `addEventListener(EventListener)` → `setLocale(Locale.KOREA)` → `speak(text)`. 퍼미션 `pleos.car.permission.TTS_SERVICE`. ON_DEVICE는 앱 등록(Client ID/Secret)이 필요 없다. **`onReady()`는 발화가 끝날 때마다 다시 오므로 그 안에서 `speak()`를 부르면 무한 반복된다.** import는 `ai.pleos.playground.tts.{TextToSpeech, constant.Mode, constant.ErrorType, listener.OnInitializeListener, listener.EventListener}`(안드로이드 TextToSpeech와 이름이 같아 별칭 import).
 
 ## 7. 에뮬레이터 스파이크 결과 (Pleos Connect Emulator v2.1.0)
 
@@ -127,12 +132,21 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | 11/06 | 착석·벨트 조회·구독 | 성공. 기본값은 승객석 착석 true, 벨트 false |
 | 11/06 | 실내등 켜기·끄기 | 성공. set 후 `getCabinLightSwitch`, `getCurrentCabinLightState` 조회값도 ON/OFF로 바뀜 |
 | 11/06 | 비상등 | SDK에 API 없음 |
+| 11/07 | 헤드업 알림 | 성공. 내비 화면이 앞에 있을 때 `IMPORTANCE_HIGH` 알림이 화면 위쪽에 "수락/거절" 버튼과 함께 뜨고, 두 버튼 모두 앱 BroadcastReceiver로 전달됨. `CATEGORY_CALL`은 전화 수신 모양(아이콘 버튼, 화면 왼쪽 아래)으로 바뀐다. 헤드업은 6~8초 뒤 알림 센터로 들어간다. 같은 id 알림이 남아 있으면 다시 헤드업으로 뜨지 않는다. 화면: `docs/pickup-alert-emulator.png` |
+| 11/07 | C1 차 위치 주입 | 성공. `adb emu geo fix 127.06030 37.49950` → `LocationManager` GPS 구독에 바로 들어옴. 정차 중에도 3초마다 같은 좌표가 계속 옴(heartbeat에 유리). 제공자 `[passive, fused, gps]` |
+| 11/07 | 런타임 퍼미션 부여 | 차 에뮬레이터 앱은 사용자 10에서 돈다. `adb shell pm grant --user 10 com.maejung <퍼미션>`이어야 한다(`--user` 없이는 적용 안 됨) |
+| 11/07 | V1 안드로이드 TTS | 실패. `TextToSpeech` 초기화 status -1(엔진 없음) |
+| 11/07 | V1 Pleos TTS ON_DEVICE | 성공. 초기화 → `onStart` → 약 2.6초 뒤 `onDone`(한국어 문장) |
+| 11/07 | V1 STT | `SpeechRecognizer.isRecognitionAvailable` = true(인식 서비스 `ai.umos.ambientai`). 실제 음성 인식은 마이크 입력이 필요해 미확인 |
+| 11/07 | N1 NaviHelper | 성공. `requestRoute(RouteInfo(lat, lng, …))` → `onRouteStarted(RouteStartInfo(duration=1620, distance=12000, …))`, `onDrivingInfo(destination.distance=12000m, duration=1620초)`. `cancelRoute()` → `onRouteCancelled`. **`requestRoute`를 부르면 내비 앱이 화면 앞으로 나온다.** 에뮬레이터 내비는 `emu geo fix`를 쓰지 않고 자체 기본 위치(성남 시흥동 부근)에서 경로를 잡는다(NMEA 체크섬 경고) |
 
 - Virtual Console(`adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`)의 BODY 패널에서 문 열림·닫힘, 다른 패널에서 기어, 공조, 앰비언트를 주입할 수 있다. 착석(Seat Occupancy) 카드도 있다.
 
 ## 8. 미결 사항
 
-- [ ] NaviHelper로 임의 좌표까지 ETA 조회·목적지 설정
+- [x] NaviHelper로 임의 좌표까지 ETA 조회·목적지 설정 → 됨(7절)
+- [x] 에뮬레이터 가짜 GPS가 `LocationManager`에 들어오는지 → 됨(7절)
 - [ ] 실제 마켓에서 외부 통신·백그라운드 WebSocket 유지 정책
 - [ ] 차 앱이 꺼져 있을 때 요청 수신(포그라운드 서비스 허용 여부)
-- [ ] 에뮬레이터 가짜 GPS(`adb emu geo fix`)가 Pleos 에뮬레이터 `LocationManager`에 들어오는지
+- [x] 승인 후 길안내 → 넣는다(11/07 결정). 요청은 헤드업 알림 + 음성으로 받고, 수락했을 때 차와 탑승자가 500m 이상이면 탑승자 위치로 길안내를 시작한다(CAR_APP.md 3절)
+- [ ] 실제 음성 인식(STT) 동작
