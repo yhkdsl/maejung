@@ -62,6 +62,7 @@ gradle.taskGraph.whenReady {
 
 dependencies {
     implementation(project(":protocol"))
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation(platform("androidx.compose:compose-bom:2025.05.01"))

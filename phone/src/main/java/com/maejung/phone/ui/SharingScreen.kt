@@ -103,7 +103,7 @@ fun SharingScreen(info: SharingInfo, onEndPreview: () -> Unit, modifier: Modifie
                     Modifier.fillMaxWidth().weight(1f).heightIn(min = minMapHeight)
                         .clip(RoundedCornerShape(16.dp)),
                 ) {
-                    SharingMap(
+                    PreviewSharingMap(
                         nearby, showLocations,
                         courseDegrees = info.courseDegrees.takeIf { relativeAngle != null },
                         bottomOverlayHeightPx = hudHeightPx.toFloat(),

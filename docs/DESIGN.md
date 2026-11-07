@@ -2,20 +2,21 @@
 
 기획 원본(시나리오, 사업성, 개인정보 원칙)은 Obsidian `01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 마중 기획서 초안.md`에 있다. 이 문서는 코드와 같이 바뀌는 설계만 다룬다.
 
-**구현 기준: 2026-11-07, P2 커밋 `05805ba`와 후속 차 앱 변경 이후 P3 구현·검증 완료.** 현재 구현 현황과 검증 이력을 구분하며, 통신 계약은 [PROTOCOL.md](PROTOCOL.md)를 따른다. 기본 차 앱(`MainActivity` → `CarSessionManager`)과 과거 `spike/VehicleSpikeActivity` 기록도 구분한다. P2 네이티브 Compose UI의 빌드·테스트·lint·폰 AVD·독립 검토 통과는 이전 이력이다(8절). P3의 실제 폰 통신·상태 복원·연결 예외·미리보기 격리를 로컬 서버·차/폰 에뮬레이터에서 검증했다. GPS·위치 서비스·실제 지도는 P4 미구현 설계다. release APK 런타임·API 26 설치/런타임과 외부 SDK·마켓·타일 이용 규정은 이번 검증에 포함하지 않는다.
+**구현 기준: 2026-11-07, P3 완료 커밋 `f5c7502` 기반 P4 debug 범위 완료.** main 최종 QA signoff와 전체 243개 GREEN·최종 증분 실행·최신 APK 안내/마커·양쪽 공유·알림 종료·app_closed 서버 종료 근거를 반영했다. 독립 검토 결과는 최종 QA 근거와 함께 관리한다. 현재 구조와 기존 검증 이력을 구분하고 통신 계약은 [PROTOCOL.md](PROTOCOL.md)를 따른다. 기본 차 앱(`MainActivity` → `CarSessionManager`)과 과거 `spike/VehicleSpikeActivity` 기록도 구분한다. P2 UI와 P3 실제 통신·상태 복원·연결 예외·미리보기 격리의 통과는 이전 이력이다(8절). P4 근거는 PHONE_APP.md 8절에 기록한다. 실물 기기·release APK 런타임·API 26 설치/런타임과 외부 SDK·마켓·타일 이용 규정은 이번 검증에 포함하지 않는다.
 
-## 폰 UI 확정 시안 (2026-11-07, 네이티브 UI 구현 완료)
+## 폰 UI 확정 시안 (2026-11-07, P2 승인·P4 실제 지도 debug 검증 완료)
 
-- **P2 사용자 디자인 승인·네이티브 Compose 적용·UI 검증 완료 이력.** `SharingMap.kt`의 로컬 도식과 샘플 좌표는 debug 미리보기에 유지한다. 기본 진입인 P3 실제 화면에는 지도 준비 안내와 실제 수신 정보만 표시한다. GPS·지도 타일은 P4다. 아래 예시 지도·나침반의 기존 검증은 로컬 미리보기 범위이며 P3 실행 결과나 API 26 런타임 검증이 아니다.
+- **P2 사용자 디자인 승인·UI 검증은 기존 이력이며 P4 실제 지도는 debug 검증을 완료했다.** 로컬 도식·샘플 좌표는 debug `PreviewSharingMap.kt`에 유지하고, 기본 실제 화면의 `SharingMap.kt`는 osmdroid 지도를 사용한다. 아래 샘플 값은 미리보기 전용이며 기존 QA를 P4 GPS·지도나 API 26 런타임 검증으로 해석하지 않는다.
 - 딥 네이비 `#002C5F`·펄 `#F7F8FA`·시안 `#00AAD2`를 기본 색으로 사용한다.
 - 픽셀 마크·"마중" 브랜드와 네이티브 은색 차량 일러스트를 사용한다. P3 상단은 실제 연결 상태를 표시하며 debug에서만 별도 미리보기 진입을 제공한다. 미리보기 안의 작은 오프라인 배지·장면 메뉴·행동은 실제 연결과 분리한다.
 - 연결 코드는 포커스 중 단일 편집기로 표시하고, 포커스가 없고 6자리 이하 ASCII 숫자이면 여섯 칸으로 표시한다. 잘못된 원문은 단일 편집기에 그대로 보이며 자르거나 필터링하지 않는다.
-- 지도는 북쪽을 위로 고정하고, 아이의 내 위치와 정차한 엄마 차를 각각 마커로 표시한다. 근접 예시에서도 차의 지도 좌표는 고정하고 아이가 가까워진 확대 화면을 그린다.
-- 지도 하단의 작은 HUD에 거리·‘이동 기준’ 나침반·도착예상 시간을 모은다. 공유는 120m·약 2분, 근접은 20m·약 30초인 로컬 예시다.
+- 실제 지도는 북쪽을 위로 두고 동일 세션의 WGS84 좌표로 차 네이비 `#002C5F`·탑승자 시안 `#00AAD2` 마커를 표시한다. P2 근접 예시는 차 좌표를 고정하고 아이가 가까워지는 로컬 그림이다.
+- **지도 아래** HUD에 내 GPS와 차 사이 직선거리·‘이동 기준’ 화살표·수신 `peer.eta`만의 도착예상을 모은다. 실제 화면에는 좌표 숫자·지도 준비 문구·샘플 수치를 표시하지 않는다. 120m·약 2분, 20m·약 30초는 debug 미리보기 값이다.
 - 공유·근접 지도는 최소 높이를 유지하면서 화면에 남는 높이를 채운다. 종료 버튼과의 큰 빈 공간을 없애고 작은 화면·큰 글꼴·가로 화면에서는 스크롤을 유지한다.
-- P4에서 GPS를 붙일 때 로컬 지도 그림을 차 앱과 같은 osmdroid(OpenStreetMap)로 교체한다. `app/src/main/java/com/maejung/ui/PickupMap.kt`를 참고해 User-Agent·`CopyrightOverlay`·지도 컨테이너 `clipToBounds`를 적용하고, 동일 세션의 차·탑승자 좌표가 양쪽 지도에서 일치하는지 검증한다. 지도 위 거리·이동 기준 상대 나침반·ETA HUD는 유지한다. 상세 완료 기준은 PHONE_APP.md 5절이다.
-- 나침반의 12시는 이동 방향(course)이며, 차 방위에서 course를 뺀 상대각으로 화살표를 표시한다. 샘플은 차 방위 80°·course 35° → 오른쪽 앞 45°다. 지도 북쪽·휴대폰 방향과 별개이며 실제 GPS course 수집은 P4다.
-- course가 없으면 `—`를 표시하고 나침반 화살표·지도 위 이동 방향 표시를 숨긴다. 정지 시 course 유효성 판정은 P4에 남아 있다. 위치 정보 없음 예시는 차·아이 마커까지 모두 숨기고 거리·나침반·ETA를 `—`로 표시한다.
+- P4 `SharingMap`은 차와 같은 osmdroid `6.1.20`(OpenStreetMap), User-Agent·`CopyrightOverlay`·`clipToBounds`를 적용한다. main은 같은 fix로 정렬한 양쪽 실제 마커·거리 일치, 실제 폰 GPS 이동·근접·탑승 종료와 320dp/글꼴 1.3의 전체 출처 표시·스크롤 종료 버튼 접근을 확인했다. 상세 구조와 근거는 PHONE_APP.md 5·8절이다.
+- 위치 없음 배너는 차·내 위치가 모두 없을 때만 표시해 단일 실제 마커를 가리지 않는다. 최신 `final-permission-denied-marker`에서 네이비 차 마커가 가려지지 않고 권한·알림 안내는 지도 밖에 표시됨을 main이 확인했다.
+- 나침반의 12시는 GPS 이동 방향(course)이며, 차 방위에서 course를 뺀 상대각을 표시한다. GPS bearing은 유효 속도의 임계 조건을 만족할 때만 사용하고 아니면 유효 GPS 변위로 구하며 기기 방향 센서를 쓰지 않는다. 정지 bearing 0을 걸러내는 수정 후 통합 GREEN과 최신 학원 정지 화면의 `—`를 확인했다. 미리보기의 차 방위 80°·course 35° → 오른쪽 앞 45°는 샘플이다.
+- 유효 course가 없으면 `—`를 표시하고 방향 화살표를 숨긴다. 실제 거리·방향은 필요한 GPS 값이 있어야 표시하며 ETA는 수신값이 있을 때만 표시한다. P2 정보 없음 예시는 차·아이 마커와 거리·나침반·ETA를 모두 숨긴다.
 - 실내등 켜짐 예시에서는 지도 아래에 "실내등 켜진 차를 찾아주세요" 안내를 둔다.
 - 차 앱도 같은 색·픽셀 로고를 쓴다(11/07, `app/.../ui/CarTheme.kt`). 주행 화면이라 어두운 남색 배경에 진주색 글자, 주 색은 하늘색, 실내등 안내는 호박색이며 지도 마커는 폰과 같이 차 남색·탑승자 하늘색이다. 상세는 CAR_APP.md 4절.
 - 로컬 참고: [HTML 시안](../.omc/design/phone-relative-compass-20261107/index.html), [시안 설명](../.omc/design/phone-relative-compass-20261107/brief.md), [가까이 화면](../.omc/design/phone-relative-compass-20261107/exports/nearby.png).
@@ -24,7 +25,7 @@
 ## 0. 설계 원칙
 
 - **양쪽 동의로 시작하고, 어느 쪽이든 끝낼 수 있다.** 탑승자가 요청하고 운전자가 승인해야 위치가 오간다.
-- **위치는 공유 중에만 서버로 보낸다.** 차 앱의 전송 루프와 서버의 위치 중계는 SHARING에서 동작한다. 서버는 좌표를 저장하지 않고 상대에게 중계하며, 메모리 세션에는 마지막 위치 수신 시각만 남긴다. 좌표를 디스크·서버 로그에 남기지 않는다. 차 앱의 GPS 구독은 Application 시작부터 계속되므로 위치 수집과 서버 전송의 수명은 다르다.
+- **위치는 공유 중에만 서버로 보낸다.** 차·폰 전송과 서버 중계는 SHARING에서 동작하며 마지막 실제 fix를 정지 중에도 3초마다 보낸다. 폰 GPS·위치 FGS도 Sharing·위치 권한 조건에서만 실행한다. 서버는 좌표를 저장하지 않고 상대에게 중계하며, 메모리 세션에는 마지막 위치 수신 시각만 남긴다. 좌표를 디스크·서버 로그에 남기지 않는다. 차 앱의 GPS 구독은 Application 시작부터 계속되므로 폰과 수집 수명이 다르다.
 - **종료는 자동이 기본, 수동은 예비다.** 차 앱은 탑승 판정으로 끝내고, 서버는 요청 승인 대기 5분·공유 중 어느 한쪽의 위치 미수신 2분 초과·요청 생성 후 60분을 5초마다 검사해 종료한다. 수동 종료도 가능하다.
 - **기본 런타임의 차량 제어는 실내등 하나만 쓴다.** 기어 P·근접 조건에서 켜고 Nearby 이탈이나 종료 시 이전 설정값으로 복구한다. 읽는 신호는 기어·승객 문·실내등이다. 좌석·벨트 관측과 공조·창문·앰비언트 제어는 spike에만 남아 있다. 대기 모드와 약속 색 앰비언트는 기본 앱에서 제외했다(2026-11-06).
 - 주행 중에는 조작을 최소화한다. 승인은 음성 또는 큰 버튼 하나.
@@ -32,12 +33,13 @@
 ## 1. 구성
 
 ```
-[폰 앱: P3 실제 연결] ──HTTPS/WebSocket──► [마중 서버: Spring Boot, 메모리 세션] ◄──WebSocket── [차 앱 (Pleos)]
- 요청·종료, 내 위치는 P4                    연결 코드, 세션, 위치 중계, 종료 시 삭제     승인, 차 위치, ETA, 실내등, 탑승 판정
+[폰 앱: P4 debug 검증 완료] ──HTTPS/WebSocket──► [마중 서버: Spring Boot, 메모리 세션] ◄──WebSocket── [차 앱 (Pleos)]
+ 요청·종료, Sharing GPS·OSM              연결 코드, 세션, 위치 중계, 종료 시 삭제     승인, 차 위치, ETA, 실내등, 탑승 판정
 ```
 
 - 차에는 GMS가 없어 FCM을 못 쓴다. 차 앱은 서버 WebSocket에 붙어 요청을 받는다.
-- 저장소 구성은 `app/`·`phone/`·`protocol/`과 별도 Gradle 프로젝트 `server/`다. 일반 Android 폰 앱의 P3 실제 연결은 `MaejungPhoneApp` → `PhoneSessionManager`가 Application 범위에서 소유하고 Activity가 구독한다. 토큰·이름은 SharedPreferences, 세션은 서버의 첫 `session.state`로 복원한다. P3 권한은 `INTERNET`이며 FusedLocationProvider·위치 권한·위치 서비스·osmdroid는 [PHONE_APP.md](PHONE_APP.md) 5절의 P4 범위다.
+- 저장소 구성은 `app/`·`phone/`·`protocol/`과 별도 Gradle 프로젝트 `server/`다. 폰은 `MaejungPhoneApp` → `PhoneSessionManager`가 Application 범위의 연결·세션·P4 내 위치/heartbeat를 소유하고 Activity가 구독한다. 토큰·이름은 SharedPreferences, 세션은 서버의 첫 `session.state`로 복원한다. 서비스가 `location/AndroidLocationSource`의 `LocationManager.GPS_PROVIDER` fix를 manager에 전달하고 Activity는 권한·가시성에 따른 실행 조건을 조정한다. GMS 위치원은 쓰지 않는다. 상세는 [PHONE_APP.md](PHONE_APP.md) 4·5절이다.
+- 폰의 위치 권한은 픽업 클릭에서 fine·coarse를 함께 요청하며 coarse도 Sharing·FGS 자격에 유효하다. 거부해도 위치 불가 안내와 픽업 요청을 유지한다. 이 API 36 에뮬레이터의 coarse-only는 초기 GPS 지연 후 실제 난독화 fix를 받았고 화면에 1286m가 표시됐다. 적시·정확한 이동에는 fine이 필요하며 실제 fix 전에는 가짜 위치를 만들지 않는다. 첫 fix 전부터 정밀도 안내와 알림 차단 안내를 독립적으로 표시하며 최신 두 거부 상태 캡처에서 안내를 확인했다. Sharing 서비스는 ongoing "엄마 차와 위치 공유 중"·"끝내기" 알림을 쓴다. API 34의 백그라운드 수락에서는 새 위치 FGS를 시작하지 않고 Activity가 보일 때 재시도한다. 정상 시작한 Sharing 서비스는 백그라운드·화면 꺼짐에도 GPS를 유지한다.
 - P2 미리보기는 debug에서 명시적으로 선택한다. 저장된 장면이 있어도 앱 시작은 실제 화면이며, 실제 페어링·요청·공유 중에는 미리보기로 숨길 수 없다. 미리보기 콜백은 실제 세션 메시지를 보내지 않는다. release는 미리보기 없이 실제 연결을 사용하며 APK 런타임은 미검증이다.
 - 차 앱에는 OSM 지도(osmdroid `6.1.20`), Pleos ON_DEVICE TTS/STT, LocationManager GPS, NaviHelper 길안내·ETA가 구현돼 있다. 지도(A9)는 구현 완료, 음성(A6)은 구현 완료·실제 발화 검증 대기로 구분한다. 차 위치를 Pleos FusedLocation으로 자동 교체하는 로직은 없다.
 - 서버 Docker 설정은 작성됐지만 Docker Hub timeout으로 이미지 빌드 성공을 확인하지 못했다(S4 빌드 검증 대기). Railway 배포(S5)는 미진행이다.
@@ -45,20 +47,21 @@
 
 ## 2. 세션 흐름 (개요)
 
-차 앱 구현은 `CarSessionMachine.kt`·`CarSessionManager.kt`, 서버 구현은 `SessionService.kt`, 폰 P3는 `PhoneSessionManager.kt`가 담당한다. 아래는 그 개요이며 상세 계약은 [PROTOCOL.md](PROTOCOL.md), 폰 상태 전이는 [PHONE_APP.md](PHONE_APP.md) 4절에 있다. P3 폰은 연결 완료와 첫 `session.state` 동기화 후 요청을 허용하고, 일반 끊김·재연결에도 최초 요청의 10초 응답 기한을 유지한다. 만료되면 Idle·연결 안내·미동기화 상태가 되며 서버의 새 스냅샷을 받은 뒤 새 요청을 허용한다. 종료 안내는 3초 후 홈으로 복귀한다. 일반 끊김은 재연결하며 4401은 자격 삭제·연결 화면, 4409는 자격 보존·명시적 다시 연결이다. 두 종료 코드 뒤에는 자동 재접속하지 않는다. 오프라인 종료 시에는 활성 상태와 안내를 유지해 재연결 후 재시도한다.
+차 앱 구현은 `CarSessionMachine.kt`·`CarSessionManager.kt`, 서버 구현은 `SessionService.kt`, 폰은 `PhoneSessionManager.kt`가 담당한다. 아래는 그 개요이며 상세 계약은 [PROTOCOL.md](PROTOCOL.md), 폰 상태 전이는 [PHONE_APP.md](PHONE_APP.md) 4절에 있다. 폰은 연결 완료와 첫 `session.state` 동기화 후 요청을 허용하고, 일반 끊김·재연결에도 최초 요청의 10초 응답 기한을 유지한다. 만료되면 Idle·연결 안내·미동기화 상태가 되며 서버의 새 스냅샷을 받은 뒤 새 요청을 허용한다. 종료 안내는 3초 후 홈으로 복귀한다. 일반 끊김은 재연결하되 heartbeat는 공유 스냅샷 동기화 후 재개한다. 4401은 자격 삭제·연결 화면, 4409는 자격 보존·명시적 다시 연결이며 두 코드에서 GPS·위치 서비스·heartbeat·자동 재접속을 중단한다. 화면/알림의 오프라인 종료 시도는 활성 상태와 안내를 유지해 재연결 후 재시도한다.
 
-| 단계 | 서버 상태 | 차 앱 상태 | 차 앱 | 폰 앱 (P3 통신, 위치·지도는 P4) |
+| 단계 | 서버 상태 | 차 앱 상태 | 차 앱 | 폰 앱 (P3/P4) |
 |---|---|---|---|---|
 | 요청 | REQUESTED | Requested | 알림 + 음성, 승인/거절 | "엄마 차에 알렸어요" |
-| 공유 | SHARING | Sharing | OSM 지도·상대 위치·방위·ETA | 실제 수신 ETA·실내등, 위치·지도 준비 안내. GPS·실제 지도는 P4 |
+| 공유 | SHARING | Sharing | OSM 지도·상대 위치·방위·ETA | GPS·위치 FGS, OSM 지도와 GPS 직선거리·이동 기준 방향·수신 ETA·실내등 |
 | 근접 | SHARING | Nearby (50m 이내 + 기어 P에서 진입) | "○○가 가까이 왔어요", ON 지원 시 실내등 점등 | "실내등 켜진 차가 엄마 차예요" (ON 지원 시) |
 | 종료 | 세션 삭제 + `session.ended` 통지 | Ended(reason) | 실내등 복구, 이유별 화면(3초). 탑승 때는 알림·음성도 안내 | 이유별 안내 |
 
 - 종료 이유는 하나의 Ended 상태 안에서 `reason`으로 구분한다: `boarded`, `manual`, `rejected`, `request_timeout`, `peer_lost`, `max_duration`(PROTOCOL.md 4절).
 - Nearby에서 거리가 70m를 넘거나 null이 되거나 기어가 P가 아니게 되면 Sharing으로 돌아가고 실내등을 복구한다(50/70m 이중 기준으로 경계에서 깜빡임 방지).
 - 공유 중 처음 null이 아닌 거리를 받았을 때 한 번만 길안내 여부를 판단한다. 500m 이상이고 탑승자 좌표가 있으면 NaviHelper로 그 좌표까지 안내한다. 처음 거리가 500m 미만이면 나중에 멀어져도 다시 시작하지 않는다. 요청 후 탑승자 이동에 따른 목적지 갱신도 없다. 시작 효과를 낸 세션은 종료 때 안내를 취소한다.
-- ETA는 내비의 `onRouteStarted`·`onDrivingInfo` 값이 있으면 그대로 사용한다. 없으면 양쪽 위치의 직선거리 × 1.3 ÷ 5.6m/s로 추정하며, 화면과 메시지에서 `navi`·`estimate`를 구분한다. 내비 오류 콜백은 기존 ETA를 비우지 않는다.
+- 차의 ETA는 내비의 `onRouteStarted`·`onDrivingInfo` 값이 있으면 그대로 사용한다. 없으면 양쪽 위치의 직선거리 × 1.3 ÷ 5.6m/s로 추정하며, 화면과 메시지에서 `navi`·`estimate`를 구분한다. 내비 오류 콜백은 기존 ETA를 비우지 않는다. 폰은 `peer.eta` 수신값만 표시하고 자체 ETA를 만들지 않는다.
 - 종료되면 서버는 세션·양쪽 인덱스·마지막 수신 시각 기록을 메모리에서 지운다. 차 앱은 전송을 멈추고 상대 위치·ETA·방위 표시를 비운다.
+- 폰의 실행 중인 위치 서비스는 최근 앱 제거의 `onTaskRemoved`에서 `appClosed()`를 호출해 `session.end(app_closed)`를 최선 노력으로 보내고 GPS·heartbeat·소켓 재시도를 중단한다. 서버는 이를 `manual`로 알린다. 오프라인 종료는 큐에 남기지 않으며 강제 종료·작업 관리자 Stop은 콜백을 보장하지 않는다. Requesting·위치 권한 없음에는 위치 FGS도 없으므로 스와이프 종료를 보장하지 않는다. 공유 heartbeat 미수신 2분 초과 만료가 대안이다.
 
 ## 3. 탑승 판정
 
@@ -142,7 +145,8 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | 차 위치 | **LocationManager 유지**. `GPS_PROVIDER`, 마지막 위치 조회 + 3초·최소 이동 0m 구독 | 11/07 `emu geo fix` 수신 기록. Pleos FusedLocation 의존성·교체 로직 없음 |
 | ETA | NaviHelper 값이 있으면 사용, 없으면 직선거리 추정 | `source: navi` / `estimate`. 양쪽 위치도 내비 값도 없으면 null |
 | 요청 수신 | WebSocket(OkHttp, 마중 서버) | Application 범위 연결과 포그라운드 서비스 구현. 프로세스 미실행 시 수신은 검증 대기 |
-| 공유 화면 지도 | OSM MAPNIK 타일 + osmdroid `6.1.20` | 차·탑승자 마커, 50m 원, 자동 범위 조정 구현 완료(A9). CAR_APP.md 4절 |
+| 차 공유 화면 지도 | OSM MAPNIK 타일 + osmdroid `6.1.20` | 차·탑승자 마커, 50m 원, 자동 범위 조정 구현 완료(A9). CAR_APP.md 4절 |
+| 폰 위치·공유 화면 | Sharing 전용 LocationManager GPS·위치 FGS·osmdroid `6.1.20`, manager의 3초 마지막 fix heartbeat | P4 debug 범위 main QA 완료. 실제 지도·권한·정지 heartbeat·이동·탑승·알림/최근 앱 종료 근거와 검증 경계는 PHONE_APP.md 8절 |
 
 `VoiceIO`, `LocationSource`는 인터페이스다. `MaejungApp`이 현재 구현체 `PleosVoiceIO`·`AndroidLocationSource`를 주입하며, SDK 공개 여부에 따른 자동 교체는 하지 않는다.
 
@@ -189,4 +193,6 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 - 서버 Docker(S4): 설정 작성, Docker Hub timeout으로 이미지 빌드 성공 미확인. Railway(S5): 배포 미진행.
 - 폰 앱의 이전 이력: P1은 기존 `Medium_Phone_API_36.0`(API 36 Play Store arm64)의 차·폰 동시 부팅으로 완료했다(차 `emulator-5554`, 폰 `emulator-5556`, 폰 boot complete=1, 이미지 다운로드 없음). P2 모듈·오프라인 UI·종료 6가지와 승인 UI 재설계의 debug 폰 AVD 결과도 이전 이력으로 유지한다. 당시 release 미리보기 차단은 소스·단위 테스트 근거이며 release APK 런타임 검증은 아니다.
 - 폰 P3 완료: 기존 통신 계약으로 REST 페어링·자격 보관·WebSocket·세션 상태 전이·재연결을 구현했다. 메인 제공 응답 기한 수정 후 phone 111개(매니저 42개 포함)와 직전 새 실행의 변경 없는 app 50개·protocol 9개를 합해 170개 통과, 실패·오류·건너뜀 0이다. 폰 테스트·debug 조립·lint 재실행은 23초·55개 태스크 실행으로 성공했고 lint는 오류 0·경고 10개다. 실제 페어링·요청·수락·양쪽 직접 종료·거절·requested/sharing 복원, 4409 재접속 중단과 명시적 재연결, 서버 재시작 후 자동 동기화, 4401 자격 삭제, 미리보기 격리·재실행 시 LIVE 진입을 확인했다. 예외 검증 후 최신 APK의 전체 정상 흐름도 재확인했으며 소스·테스트·Manifest의 독립 검토는 승인됐다. 범위별 근거는 [PHONE_APP.md 7절](PHONE_APP.md#7-p3-검증-결과)에 있다. P4 GPS·위치 서비스·양쪽 실제 지도, release APK 런타임·API 26 설치/런타임은 검증에 포함하지 않는다.
+- 폰 P4 완료: main 제공 `green-notices` 전체 실행은 phone 184 + app 50 + protocol 9 = 243개 통과(실패·오류·건너뜀 0), 29초·81개 태스크 실행·lint 오류 0/경고 12개다. 마지막 상수 정리 후 증분 실행은 27초·실행 15/최신 상태 66이며 phone 184개를 재실행하고 app/protocol은 직전 전체 실행 결과를 유지했다. 최신 APK 설치·권한/마커·coarse 지연 후 실제 fix·양쪽 공유·알림 종료와 app_closed 서버 종료까지 main이 signoff했다. 37개 변경 파일·80개 보호 파일 일치와 범위별 근거는 [PHONE_APP.md 8절](PHONE_APP.md#8-p4-검증-결과)에 기록한다. P1/P2/P3 결과는 역사로 보존한다.
+- P4 검증 경계: 실물 기기·API 26 설치/런타임·release 런타임은 미검증이다. coarse GPS 지연·force-stop·위치 FGS 없는 상태의 콜백 한계는 PHONE_APP.md 5·8절을 따른다. 보호된 차 앱의 두 점이 0m로 겹칠 때 세계 범위로 확대되는 기존 현상은 범위 밖으로 남겼다.
 - 외부 환경 검증 대기: 실제 마켓의 외부 통신·백그라운드 연결 정책, 앱 프로세스가 실행되지 않은 상태의 요청 수신. 현재 포그라운드 서비스 구현은 프로세스가 꺼져도 수신된다는 보장이 아니다.

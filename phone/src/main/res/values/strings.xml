@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">마중</string>
+    <string name="location_channel_name">위치 공유</string>
+    <string name="location_notification_title">엄마 차와 위치 공유 중</string>
+    <string name="location_notification_text">마중이 끝나면 위치 공유를 끝내 주세요</string>
+    <string name="location_notification_end">끝내기</string>
 </resources>

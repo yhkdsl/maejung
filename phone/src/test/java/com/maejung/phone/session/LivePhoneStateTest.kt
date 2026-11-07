@@ -5,9 +5,17 @@ import com.maejung.phone.store.StoredPairing
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LivePhoneStateTest {
+    @Test
+    fun `live state starts without GPS or a location notice`() {
+        val state = LivePhoneState()
+        assertNull(state.ownLocation)
+        assertNull(state.locationNotice)
+    }
+
     @Test
     fun `pickup requires an idle paired connected and synchronized state`() {
         val pairing = StoredPairing("r_1", "v_1", "token_1", "민지")

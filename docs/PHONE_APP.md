@@ -1,12 +1,12 @@
 # 마중 폰 앱 (탑승자용)
 
-탑승자(학원생 등)가 쓰는 일반 Android 앱이다. **2026-11-07, P2 커밋 `05805ba` 이후 P3 구현·검증 완료 기준**으로 문서를 갱신했다. 앱의 기본 진입은 실제 서버 연결이며, P2 오프라인 미리보기는 debug에서 명시적으로 선택한다. 2절은 모듈·실행 설정, 3절은 분리된 P2 미리보기, 4절은 P3 통신 구조와 상태 전이, 5절은 미구현 P4 위치·서비스 설계다. P1/P2 검증 이력은 6절에 보존하고, P3의 새 빌드·실서버 검증 결과는 7절에서 별도로 기록한다. **P3 debug 실서버 검증은 완료**했으며 GPS·위치 서비스·실제 지도·release APK 런타임·API 26 설치/런타임은 포함하지 않는다.
+탑승자(학원생 등)가 쓰는 일반 Android 앱이다. **2026-11-07, P3 완료 커밋 `f5c7502` 기반의 P4 구현과 합의한 debug 범위의 main QA를 완료했다.** 앱의 기본 진입은 실제 서버 연결이며, P2 오프라인 미리보기는 debug에서 명시적으로 선택한다. 2절은 모듈·실행 설정, 3절은 분리된 P2 미리보기, 4절은 P3/P4 통신 구조, 5절은 P4 위치·서비스·실제 지도 구조다. P1/P2 이력은 6절, P3 검증 결과는 7절에 보존한다. **P4 전체 243개 GREEN·최종 증분 실행·최신 APK 안내/마커·양쪽 공유·이동/근접/탑승·알림 종료·app_closed 서버 종료 근거는 8절에 기록했다.** 독립 검토 결과는 최종 QA 근거와 함께 관리한다. 실물 기기·release APK 런타임·API 26 설치/런타임은 미검증이다.
 
-메시지 계약의 기준은 [PROTOCOL.md](PROTOCOL.md)다. P3는 기존 계약으로 REST 페어링·WebSocket·토큰과 이름 보관을 연결하며 메시지 형식을 추가하지 않는다. GPS·위치 권한·위치 포그라운드 서비스·실제 지도는 P4 범위다. 빌드 공통 규칙은 [CAR_APP.md](CAR_APP.md) 1절을 참고한다.
+메시지 계약의 기준은 [PROTOCOL.md](PROTOCOL.md)다. P3 REST·WebSocket·자격 보관을 유지하고 P4도 기존 메시지만 사용한다. GPS·위치 권한·위치 포그라운드 서비스·실제 지도는 P4 범위다. 이번 작업은 `app/`·`server/`·`protocol/` 소스를 변경하지 않는다. 빌드 공통 규칙은 [CAR_APP.md](CAR_APP.md) 1절을 참고한다.
 
 ## 0. 실제 앱·개발용 대역·기존 검증의 구분
 
-- P3 폰 앱은 실제 REST·WebSocket을 사용한다. `scripts/fake-rider.mjs`는 같은 흐름을 참고하거나 차·서버만 시연할 때 쓰는 별도 개발용 대역이며, 이를 실행한 결과는 폰 앱 검증으로 계산하지 않는다. Node 22 이상 내장 WebSocket을 사용한다.
+- 폰 앱은 P3부터 실제 REST·WebSocket을 사용한다. `scripts/fake-rider.mjs`는 같은 흐름을 참고하거나 차·서버만 시연할 때 쓰는 별도 개발용 대역이며, 이를 실행한 결과는 폰 앱 검증으로 계산하지 않는다. Node 22 이상 내장 WebSocket을 사용한다.
 - 차 화면에서 발급받은 코드를 넣어 실행한다:
 
   ```bash
@@ -25,7 +25,7 @@
 
 - **1차(11/15)는 Android만.** iOS는 만들지 않는다.
 - 화면 3개: 연결, 홈(요청), 마중 중. 그 밖에 요청 대기·종료 문구는 홈 화면 안의 상태 표시로 처리한다.
-- 승인된 UI를 네이티브 Compose로 적용했다. P2 미리보기의 공유 화면에는 북쪽 고정 로컬 예시 지도와 거리·이동 기준 나침반·ETA HUD, 실내등 안내가 있다. P3 실제 공유 화면은 이 그림·샘플 좌표를 사용하지 않고 지도 준비 안내와 실제 수신한 차량 좌표·ETA·실내등 정보를 표시한다. 실제 GPS·지도 타일 연동은 P4다.
+- 승인된 UI를 네이티브 Compose로 적용했다. P2 debug 미리보기는 `PreviewSharingMap`의 로컬 예시 지도·샘플 HUD를 유지한다. P4 실제 공유 화면은 `SharingMap`의 osmdroid 지도와 실제 GPS·수신 차량 위치를 사용하고, 지도 아래 거리·이동 기준 방향·수신 ETA와 실내등 안내를 표시한다. 합의한 debug 범위의 main 네이티브 QA를 완료했다.
 - 차 이름은 1차에서 "엄마 차"로 고정한다(연결할 때 입력받는 건 PT 단계).
 - P2는 디버그 오프라인 UI, P3는 실제 페어링·요청·수락·거절·종료·재연결·토큰 보관, P4는 GPS·위치 공유 서비스·실제 지도로 나눈다. P2 화면의 거리·ETA·실내등은 샘플이다.
 
@@ -33,10 +33,10 @@
 
 - 루트 `settings.gradle.kts`가 `:app`·`:protocol`·`:phone`을 포함한다. `phone/`의 namespace·applicationId는 `com.maejung.phone`, minSdk 26, **compileSdk 35**, targetSdk 34, JVM 17이다.
 - 일반 휴대폰 앱이다. `android.hardware.type.automotive`를 선언하지 않는다.
-- 기존 AGP 8.10.1·Kotlin 2.1.21·Compose BOM `2025.05.01`·Material3와 `project(":protocol")`을 재사용한다. Activity Compose `1.10.1`, Lifecycle Compose `2.9.0`, Core KTX `1.16.0`, 차 앱과 같은 Coroutines Android `1.10.2`를 고정한다. P3 통신은 OkHttp `4.12.0`, 테스트는 MockWebServer `4.12.0`·Coroutines Test `1.10.2`를 사용한다. GMS 위치·Pleos 의존성은 추가하지 않는다.
+- 기존 AGP 8.10.1·Kotlin 2.1.21·Compose BOM `2025.05.01`·Material3와 `project(":protocol")`을 재사용한다. Activity Compose `1.10.1`, Lifecycle Compose `2.9.0`, Core KTX `1.16.0`, 차 앱과 같은 Coroutines Android `1.10.2`를 고정한다. 통신은 OkHttp `4.12.0`, 테스트는 MockWebServer `4.12.0`·Coroutines Test `1.10.2`, P4 지도는 osmdroid `6.1.20`이다. 위치는 Android LocationManager이며 GMS 위치·Pleos 의존성은 추가하지 않는다.
 - `BuildConfig.SERVER_URL`은 debug `http://10.0.2.2:8080`, release는 `-Pmaejung.serverUrl` 우선이며 없으면 `local.properties`의 같은 속성이다. 폰 release는 HTTPS 주소가 필요하다. 실제 통신 경로는 debug·release가 같으며 release에는 미리보기 진입이 없다. release APK 생성·런타임 검증은 아직 하지 않았다.
-- Manifest의 Application은 `MaejungPhoneApp`, 런처는 `com.maejung.phone/.MainActivity`, `windowSoftInputMode="adjustResize"`다. P3에는 통신용 `INTERNET`만 추가하며 위치·알림·포그라운드 서비스 권한과 서비스 선언은 P4로 남긴다. 로컬 HTTP 예외는 debug의 `10.0.2.2`·`localhost`·`127.0.0.1`에 한정하고 release에서는 허용하지 않는다.
-- debug APK: `phone/build/outputs/apk/debug/phone-debug.apk`. P2 조립·설치 이력은 6절, P3의 새 검증 상태는 7절이다. 현재 실행 절차는 [README](../README.md)의 폰 앱 실제 연결을 참고한다.
+- Manifest의 Application은 `MaejungPhoneApp`, 런처는 `com.maejung.phone/.MainActivity`, `windowSoftInputMode="adjustResize"`다. P4는 `INTERNET` 외에 `ACCESS_FINE_LOCATION`·`ACCESS_COARSE_LOCATION`·`FOREGROUND_SERVICE`·`FOREGROUND_SERVICE_LOCATION`·`POST_NOTIFICATIONS`와 `foregroundServiceType="location"`인 `LocationShareService`를 사용한다. 로컬 HTTP 예외는 debug의 `10.0.2.2`·`localhost`·`127.0.0.1`에 한정하고 release에서는 허용하지 않는다.
+- debug APK: `phone/build/outputs/apk/debug/phone-debug.apk`. P2 조립·설치 이력은 6절, P3 결과는 7절, P4 최종 검증 결과는 8절이다. 현재 실행 절차는 [README](../README.md)의 폰 앱 실제 연결과 위치 공유를 참고한다.
 
 ## 3. P2 화면과 로컬 상태 미리보기 (구현 완료·debug 전용)
 
@@ -52,7 +52,7 @@ phone/src/main/java/com/maejung/phone/
     ├── PairScreen.kt             이름·코드 단일 편집기/여섯 칸 표시·형식 검증
     ├── HomeScreen.kt             차량 일러스트·요청·요청 대기·종료 안내
     ├── SharingScreen.kt          지도·거리/나침반/ETA HUD·실내등 안내·공유 종료
-    ├── SharingMap.kt             북쪽 고정 로컬 도식·정차한 차/아이 마커
+    ├── PreviewSharingMap.kt      debug 전용 북쪽 고정 로컬 도식·정차한 차/아이 마커
     ├── SharingCompass.kt         이동 기준 상대각·초/분 ETA 표시 계산
     ├── PhoneComponents.kt        네이비/펄/시안 테마·픽셀 마크·스크롤·버튼
     ├── PhoneIllustrations.kt     Compose Canvas 연결·은색 차량 일러스트
@@ -66,7 +66,7 @@ phone/src/main/java/com/maejung/phone/
 - 코드는 ASCII `0`~`9` 정확히 6자리다. 포커스 중에는 텍스트·커서가 보이는 단일 편집기를 쓰고, 포커스가 없고 6자리 이하 ASCII 숫자이면 여섯 칸으로 표시한다. 문자·전각 숫자·공백·7자리 이상 등 잘못된 입력도 원문이 보이는 단일 편집기로 유지하며 자르거나 숫자만 추리지 않는다. 불완전한 코드·전각/다른 문자 숫자·문자·앞뒤 공백은 검증에서 허용하지 않는다. 검증은 로컬 형식 검사이며 실제 코드 존재·만료·사용 여부는 확인하지 않는다.
 - 홈은 이름 인사와 "이제 집에 갈까요?", 네이티브 은색 차량 일러스트·"엄마 차" 정보, "데리러 와줘 · 미리보기" 버튼을 표시한다. 누르면 요청 대기 예시가 되고 실제 요청은 보내지 않는다. 다음 공유 화면은 상단 메뉴에서 직접 선택한다. 요청 대기에서 자동 승인·공유 전환은 없다.
 - 마중 중은 북쪽 고정 로컬 예시 지도에 정차한 엄마 차와 아이의 내 위치를 표시하고, 지도 하단 HUD에 거리·"이동 기준" 나침반·도착예상을 모은다. 일반 공유 샘플은 120m·90초(화면 "약 2분")·실내등 꺼짐, 근접은 20m·30초(화면 "약 30초")·실내등 켜짐이다. 근접 지도에서도 차의 지도 좌표는 고정하고 아이를 차 가까이 옮겨 확대한다. 실내등 켜짐에는 지도 아래 "실내등 켜진 차를 찾아주세요"를 표시한다. "위치 공유 끝내기"는 미리보기 종료 확인창을 연다.
-- 두 공유 샘플은 북쪽 기준 차 방위 80°·이동 방향(course) 35°이므로 나침반 화살표는 이동 기준 오른쪽 앞 45°다. 나침반의 12시는 이동 방향이며 지도 북쪽·휴대폰 방향과 별개다. course가 없으면 나침반은 `—`로 표시하고 화살표와 지도 위 이동 방향 표시를 숨긴다. 실제 GPS course 수집·정지 시 유효성 판정은 P4다.
+- 두 공유 샘플은 북쪽 기준 차 방위 80°·이동 방향(course) 35°이므로 나침반 화살표는 이동 기준 오른쪽 앞 45°다. 나침반의 12시는 이동 방향이며 지도 북쪽·휴대폰 방향과 별개다. course가 없으면 나침반은 `—`로 표시하고 화살표와 지도 위 이동 방향 표시를 숨긴다. 실제 GPS course 수집·유효성 처리는 5절의 P4 구조로 분리한다.
 - 공유·근접 지도는 최소 높이를 유지하면서 화면에 남는 세로 공간을 채운다. 지도·실내등 안내와 종료 버튼 사이에는 정해진 여백만 두며, 작은 화면·큰 글꼴·가로 화면은 내용 전체를 스크롤한다.
 - 정보 없음은 "위치 정보를 기다리고 있어요"와 "위치 정보가 없어 차 위치를 표시할 수 없어요."를 표시한다. 지도 바탕만 남기고 차·아이 마커와 이동 방향·나침반 화살표를 모두 숨기며 거리·나침반·ETA는 `—`, 실내등은 "실내등 정보를 확인할 수 없어요."로 표시한다. 이전 근접·공유 샘플 값은 남기지 않는다.
 - 미리보기 화면·이름·코드·입력 오류 표시 여부는 `SavedStateHandle`에 보존하고 `StateFlow`로 화면에 전달한다. `PhoneComponents`의 페이지는 스크롤 가능하며 `PhoneApp`은 시스템 영역·키보드 여백을 적용한다. 회전·키보드·프로세스 재생성 QA는 6절의 P2 이력이다. 저장된 장면이 있어도 앱 시작 시 실제 연결이 기본이며, 해당 장면은 미리보기를 직접 열었을 때만 보인다. 실제 토큰은 미리보기 상태·SavedStateHandle에 넣지 않는다.
@@ -107,68 +107,74 @@ P2는 아래 문구를 홈의 종료 상태로 미리보기한다. P3 실제 화
 | `peer_lost` | "연결이 끊겨서 위치공유를 끝냈어요" |
 | `max_duration` | "1시간이 지나 위치공유를 끝냈어요" |
 
-## 4. P3 통신 구조와 상태 전이 (구현·검증 완료)
+## 4. P3/P4 통신 구조와 상태 전이
 
 통신 계약의 기준은 [PROTOCOL.md](PROTOCOL.md)다. 메시지 형식 변경·추가가 필요하면 문서를 먼저 수정하고 `protocol/` → `server/` → `app/` → `phone/` 순서로 맞춘다. 폰 작업에서 차 앱·서버 코드 변경이 필요하면 사용자에게 변경 필요사항과 영향을 먼저 알리고 해당 코드는 수정하지 않는다.
 
-**P3/P4 경계(2026-11-07 확정)**: P3는 아래 통신·화면 상태 전이를 구현한다. 위치 권한 요청, GPS 수집, `LocationShareService` 시작·중지와 알림, 실제 지도는 P4에서 연결한다. 따라서 P3에서는 위치 권한 없이 요청·수락·종료를 검증하고, 실제 공유 화면에 예시 좌표·거리·방향을 표시하지 않는다. 초기 `session.state` 동기화가 끝난 연결에서만 새 요청을 허용하며, 4409는 자격을 보존한 채 자동 재연결을 멈추고 명시적인 다시 연결을 기다린다.
+**P3/P4 경계**: 아래 통신·화면 전이는 P3에서 검증한 기반이며, P4는 위치 권한·GPS·`LocationShareService`·알림·실제 지도를 붙인다. 위치 없이 요청·수락·종료하는 흐름을 유지한다. 초기 `session.state` 동기화가 끝난 연결에서만 새 요청을 허용하며, 4409는 자격을 보존한 채 자동 재연결을 멈추고 명시적인 다시 연결을 기다린다. P3 검증 이력은 P4 서비스·지도 검증을 대신하지 않는다.
 
-P3는 다음 구성으로 실제 통신과 UI 소유권을 나눈다. P4 두 항목은 아직 설계다.
+실제 통신·위치·UI 소유권은 다음과 같이 나눈다. P4 자동 검증과 main 네이티브 QA 근거는 8절에 기록한다.
 
 | 담당 | 역할 |
 |---|---|
-| P3 `MaejungPhoneApp`·`PhoneSessionManager` | Application 범위의 CoroutineScope에서 실제 WebSocket 연결·세션 StateFlow 소유. Activity는 lifecycle-aware 방식으로 구독 |
+| `MaejungPhoneApp`·`PhoneSessionManager` | Application 범위에서 WebSocket·세션 StateFlow·내 위치와 3초 heartbeat 소유. Activity는 구독하고 가시성·권한에 따른 서비스 실행 조건을 조정 |
 | P3 `net/ApiClient`·`WebSocketTransport` | REST 페어링·토큰 인증·메시지 전송·재연결(PROTOCOL.md 3절) |
 | P3 `store/Prefs` | riderId·vehicleId·riderToken·riderName을 하나의 SharedPreferences 값으로 보관·인증 실패 시 삭제 |
-| P3 `LivePhoneState` | Unpaired·Idle·Requesting·Sharing·Ended, 연결 상태·초기 동기화·실제 수신 정보 |
+| `LivePhoneState` | Unpaired·Idle·Requesting·Sharing·Ended, 연결·초기 동기화·실제 수신 정보, P4 `ownLocation`·`locationNotice` |
 | P3 `LivePhoneApp`·`LivePhoneController` | 실제 화면과 명시적 debug 미리보기의 경계. 입력 초안만 화면 복원 대상이며 토큰·연결 수명은 소유하지 않음 |
-| P4 `location/FusedLocationSource` | FusedLocationProviderClient, 3초 간격·PRIORITY_HIGH_ACCURACY 설계 |
-| P4 `LocationShareService` | Sharing 중 위치 수신·전송과 프로세스 유지, `foregroundServiceType="location"` |
+| P4 `location/AndroidLocationSource` | 차와 같은 `LocationManager.GPS_PROVIDER`. 신선한 실제 fix와 GPS course 제공, GMS 사용 없음 |
+| P4 `LocationShareService`·서비스 정책/컨트롤러 | Sharing·위치 권한 조건에서만 GPS 구독과 위치 FGS·알림 유지. fix는 manager에 전달하며 종료 시 구독 해제 |
+| P4 `LiveSharingProjection`·`SharingMap` | 실제 위치의 직선거리·방위·course 상대각과 수신 ETA를 표시, osmdroid 실제 지도. 로컬 도식은 debug `PreviewSharingMap`으로 분리 |
 
 실제 연결을 Activity 범위 ViewModel만으로 소유하지 않는다. Application 시작 때 보관한 자격이 있으면 이를 복원하고 소켓에 연결한다. `PhoneSessionManager`가 들어오는 메시지를 구독한 뒤 연결하므로 첫 `session.state`를 놓치지 않게 한다. P2의 `PreviewScene`은 아래 실제 세션 상태 머신을 대체하지 않는다.
 
-아래는 P3 폰의 상태 전이 기준이다. 위치 권한·서비스에 해당하던 동작은 위 경계에 따라 P4에서 붙인다. 현재 서버의 `session.state`는 상태와 탑승자 정보만 복원하며, 이전 위치·ETA·실내등 값이나 종료 이유는 재전송하지 않는다.
+아래는 P3 전이에 P4 위치 수명을 연결한 기준이다. 현재 서버의 `session.state`는 상태와 탑승자 정보만 복원하며, 이전 위치·ETA·실내등 값이나 종료 이유는 재전송하지 않는다.
 
 | 현재 | 이벤트 | 다음 | 동작 |
 |---|---|---|---|
 | Unpaired | 연결 성공(`POST /api/pairings` 201) | Idle | 토큰·이름 저장, WebSocket 연결 |
 | Unpaired | 404·400 | Unpaired | "코드를 다시 확인해 주세요" |
-| Idle | "데리러 와줘" 버튼 | Requesting(null) | 보관한 이름으로 `pickup.request {riderName}`. **연결 완료 + 초기 `session.state` 동기화 완료일 때만 허용**. 위치 권한은 P4 |
+| Idle | "데리러 와줘" 버튼 | Requesting(null) | fine·coarse 권한 요청 후 보관한 이름으로 `pickup.request {riderName}`. 거부해도 요청·위치 불가 안내. **연결 + 초기 동기화 완료일 때만 허용**, 아직 GPS·위치 FGS 없음 |
 | Requesting(null) | 최초 요청의 10초 기한까지 `pickup.pending`·`error` 또는 유효한 상태 스냅샷이 없음 | Idle("연결을 확인해 주세요") | 일반 끊김·재연결에도 최초 기한 유지. 만료 시 동기화 해제, 새 요청 차단 후 서버 상태 재확인. 4401·4409 뒤에는 자동 재접속하지 않음 |
 | Requesting | `pickup.pending` | Requesting(sessionId) | "엄마 차에 알렸어요" |
 | Requesting | `error VEHICLE_OFFLINE` | Idle("차가 꺼져 있어요") | |
 | Requesting | `error SESSION_ALREADY_ACTIVE` | Idle("이미 다른 요청이 진행 중이에요") | |
 | Requesting | 취소 버튼, 연결·동기화 완료 및 전송 큐 수락 | Ended(manual) | `session.end manual`. GPS·서비스 처리는 없음 |
-| Requesting | `pickup.accepted` | Sharing | 해당 sessionId의 공유 화면. 위치 서비스 시작은 P4 |
+| Requesting | `pickup.accepted` | Sharing | 해당 sessionId의 실제 공유 화면. 위치 권한·앱 가시성에 따라 서비스 시작 또는 화면 복귀 후 재시도(5절) |
 | Sharing | `peer.location`, `peer.eta`, `peer.light` | Sharing | 현재 sessionId의 유효한 수신 정보만 갱신. 실내등은 true일 때만 강조 |
-| Sharing | 화면 종료 버튼, 연결·동기화 완료 및 전송 큐 수락 | Ended(manual) | `session.end manual`. 알림 종료 액션·서비스 중지는 P4 |
+| Sharing | 화면/알림 종료, 연결·동기화 완료 및 전송 큐 수락 | Ended(manual) | `session.end manual`, GPS·서비스·heartbeat·위치 정보 정리 |
 | Requesting·Sharing | 연결 끊김·미동기화·전송 실패 중 종료 시도 | 현재 활성 상태 유지 | 연결 상태를 안내하고 다시 연결 후 종료 재시도. 종료 메시지를 보냈다고 표시하거나 자동 예약하지 않음 |
-| Requesting·Sharing | 현재 sessionId의 `session.ended(reason)` | Ended(reason) | 수신 정보 정리. 서비스 중지는 P4 |
-| Requesting·Sharing | `session.state none` | Ended(peer_lost) | 유실된 서버 세션 정리 |
+| Requesting·Sharing | 현재 sessionId의 `session.ended(reason)` | Ended(reason) | 수신/내 위치 정리, GPS·서비스·heartbeat 중지 |
+| Requesting·Sharing | `session.state none` | Ended(peer_lost) | 유실된 서버 세션과 위치·서비스 정리 |
 | 자격이 있는 상태 | 유효 sessionId의 `session.state requested` | Requesting(sessionId) | 최초 연결·재연결 때 요청 복원, 다른 세션이면 이전 수신 정보 정리 |
-| 자격이 있는 상태 | 유효 sessionId의 `session.state sharing` | Sharing | 공유 복원. 새 세션이면 이전 수신 정보를 정리하며, 같은 공유 세션이면 현재 정보를 유지. 서버가 이전 측정값을 재전송하지는 않음 |
+| 자격이 있는 상태 | 유효 sessionId의 `session.state sharing` | Sharing | 공유 복원. 새 세션이면 이전 내 위치·수신 정보·heartbeat 정리. 같은 세션은 스냅샷 동기화 후 heartbeat 재개. 서비스 조건 재확인 |
 | Idle | `session.state none` | Idle | 초기 동기화 완료, 새 요청 가능 |
 | Ended | `session.state none` | Ended | 동기화 완료, 기존 종료 안내·3초 복귀 유지 |
 | Ended | 3초 뒤 | Idle | |
 | 자격이 있는 상태 | 일반 연결 끊김 | 현재 세션 상태 유지 | 동기화 해제, 자동 재연결. 연결 후 `session.state`로 재판정 |
-| 아무 상태 | WebSocket close 4401 | Unpaired | 보관한 페어링 자격 삭제, 해당 토큰의 자동 재연결 중단 |
-| 자격이 있는 상태 | WebSocket close 4409 | 현재 상태 + REPLACED | 자격 보존, 동기화 해제, 자동 재연결·새 요청 중단. "다시 연결"을 눌러 명시적으로 재접속 |
+| 아무 상태 | WebSocket close 4401 | Unpaired | 보관한 페어링 자격 삭제, 자동 재연결·GPS·서비스·heartbeat 중단 |
+| 자격이 있는 상태 | WebSocket close 4409 | 현재 상태 + REPLACED | 자격 보존, 동기화 해제, 자동 재연결·새 요청·GPS·서비스·heartbeat 중단. "다시 연결"로 명시적 재접속 |
 
 연결은 OkHttp ping 15초, 일반 실패 때 1·2·4·8·최대 15초 간격으로 재시도한다. 명시적 종료·4401·4409 뒤에는 자동 재연결하지 않는다. 소켓을 교체한 뒤 이전 소켓 콜백이 새 연결 상태를 덮어쓰지 않게 구분한다.
 
 아직 sessionId를 받지 못한 요청의 10초 응답 기한은 일반 끊김이나 재접속 시 취소·연장하지 않는다. 기한이 지나면 Idle과 "연결을 확인해 주세요"로 돌아가고 `synchronized=false`로 새 요청을 막는다. 일반 연결에서는 재접속해 새 `session.state`를 받고, `requested`·`sharing`이면 기존 서버 세션을 복원하고 `none`이면 동기화된 Idle로 만든다. 이때 새 픽업 요청을 자동 전송하지 않는다. 4401·4409 뒤에는 이 확인을 위한 자동 재접속도 하지 않는다.
 
-초기 동기화 전에는 소켓이 열려도 요청을 보낼 수 없다. 다른 sessionId의 수신 메시지와 해석할 수 없는 메시지는 상태를 바꾸지 않으며, 활성 스냅샷에는 sessionId가 필요하다. 새 세션과 종료 전이에서 이전 ETA·위치·실내등을 정리한다. 실제 공유 화면은 "지도 안내 준비 중"과 함께 수신한 차량 위경도를 숫자로 표시하며 예시 지도 마커에 끼워 맞추지 않는다. "차가 보낸 경로 거리"·도착예상은 `peer.eta` 값으로만 표시한다. 폰 GPS가 없으므로 이동 기준 방위·course는 `—`로 유지한다. 종료 버튼은 "마중 끝내기"이며 현재 위치를 전송 중이라고 표시하지 않는다.
+초기 동기화 전에는 소켓이 열려도 요청을 보낼 수 없다. 다른 sessionId의 수신 메시지와 해석할 수 없는 메시지는 상태를 바꾸지 않으며, 활성 스냅샷에는 sessionId가 필요하다. 새 세션과 종료 전이에서 이전 ETA·내 위치·상대 위치·실내등을 정리한다. P4 실제 공유 화면은 좌표 숫자·지도 준비 문구를 실제 지도와 지도 아래 HUD로 바꾼다. 거리는 내 GPS와 차 사이 직선거리, 방향은 GPS 이동 기준이며 ETA만 `peer.eta`에서 받는다. 값이 없으면 `—`로 표시한다. 화면 종료 버튼은 "마중 끝내기"다.
 
 종료 문구는 3절의 6가지를 사용하며, P3는 Ended에서 3초 뒤 자동으로 Idle로 돌아간다. 전송 성공은 WebSocket 송신 큐 수락을 뜻하며 서버 확인 응답을 뜻하지 않는다. 다음 연결의 `session.state`가 최종 세션 상태를 동기화한다. P2 종료 미리보기의 수동 홈 복귀와 구분한다.
 
-## 5. P4 위치 전송과 앱 종료 (미구현)
+## 5. P4 위치 전송과 앱 종료
 
-- **실제 지도 전환**: GPS를 붙일 때 현재 `SharingMap.kt`의 로컬 도식을 차 앱과 같은 **osmdroid(OpenStreetMap)** 지도로 교체한다. 차 앱의 `app/src/main/java/com/maejung/ui/PickupMap.kt`를 참고해 앱 식별 User-Agent와 `CopyrightOverlay`를 적용하고, 지도 컨테이너에 `clipToBounds`를 적용한다. 출처 표시는 HUD에 가리지 않게 유지한다. 같은 세션의 차량·탑승자 WGS84 좌표를 양쪽 지도에 표시하고 시연 때 동일 위치가 보이는지 확인한다. 지도 위 거리·ETA·상대 나침반("이동 기준") HUD는 유지하며, 이동 방향을 12시로 삼는 의미도 유지한다. 현재 P2 지도는 예시 그림이며 실제 타일·GPS 연결은 아직 없다.
-- **위치 전송은 Sharing일 때만** 하는 설계다. "3초 또는 10m, 최소 10초마다"는 폰의 예정 규칙이다. 현재 차 앱은 마지막 위치를 3초마다 보내고 대역은 2초마다 보내며, 서버는 수신 간격으로 만료를 판단한다(PROTOCOL.md 3.2·4절).
-- 포그라운드 서비스 알림: "엄마 차와 위치 공유 중" + "끝내기" 액션.
-- 최근 앱에서 스와이프하면 서비스의 `onTaskRemoved`에서 `PhoneSessionManager`로 `session.end(app_closed)`를 보내고 서비스를 멈추는 설계다. 콜백·전송 성공은 아직 검증하지 않았다. 현재 서버는 받은 reason을 `manual`로 통일한다. 전송되지 않으면 **SHARING에서 마지막 위치 수신(없으면 승인) 후 2분 초과**를 만료 검사 때 `peer_lost`로 처리한다. REQUESTED는 생성 후 5분 이상에 `request_timeout`이다.
-- P3의 통신용 `INTERNET`에 더해 P4에서 `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`(33 이상)을 추가할 설계다. P4에서는 "데리러 와줘"를 처음 누를 때 위치 권한을 요청하고 포그라운드 서비스로 공유한다. 현재 P3는 위치 권한을 요청하지 않으며 기기에서 위치 권한·서비스 흐름도 검증하지 않았다.
+사용자 확정 요구를 구현했다. 초기 계획의 Fused 위치원·이동량 기반 전송 규칙보다 아래 기준을 우선한다. **P4 debug 범위 main QA는 완료했으며 실행별 근거와 검증 경계는 8절에 기록한다.**
+
+- **위치원·course**: `location/AndroidLocationSource`는 차와 같은 Android `LocationManager.GPS_PROVIDER`를 사용한다(GMS 없음). 마지막 위치도 신선도·좌표·정확도 유효성을 확인한 실제 fix만 받아 이후 GPS 업데이트를 구독한다. GPS bearing은 유효한 속도가 임계 조건을 만족할 때만 사용하고, 그렇지 않으면 유효 GPS fix 사이 변위로 course를 구한다. 정지 중 보고된 bearing 0을 이동 방향으로 간주하지 않으며 기기 방향 센서도 쓰지 않는다. 유효한 이동 방향이 없으면 화살표와 course 표시를 숨기고 `—`로 둔다. 속도 임계 조건·GPS 변위 fallback 수정 후 통합 GREEN과 최신 APK의 정지 `—`를 확인했고 실제 GPS 이동·근접·탑승 종료 근거는 8절에 기록한다.
+- **권한과 시작 시점**: "데리러 와줘" 클릭에서 fine·coarse를 함께 요청하며 coarse만 허용해도 Sharing·위치 FGS 실행 자격은 유효하다. 거부해도 픽업 요청은 진행하고 위치 없이 요청됐음을 분명히 안내한다. Requesting이나 위치 권한이 없는 상태에서는 GPS·위치 FGS를 시작하지 않는다. 권한 회수·GPS 사용 불가도 안내하며 수집을 중지한다. 이 API 36 에뮬레이터의 coarse-only는 초기 LOW_POWER·10분 간격/GNSS 꺼짐 상태에서 fix가 지연됐지만 이후 실제 난독화 GPS를 받았고 화면에 1286m가 표시됐다. 영구적인 GPS 불가를 뜻하지 않으며 적시·정확한 이동에는 fine이 필요하다. 실제 fix가 없으면 좌표를 만들거나 보내지 않는다. 대략적 위치의 정밀도·정확한 위치 필요 안내는 첫 fix 전부터 제공하며 coarse 허용 기준은 유지한다. 최신 거부 상태 캡처에서 안내를 확인했다(8절).
+- **Sharing 전용 heartbeat**: 서비스가 받은 fix는 Application 소유 `PhoneSessionManager.updateOwnLocation()`으로 전달한다. 유효 sessionId의 Sharing·연결·서버 동기화가 모두 맞을 때 첫 실제 fix를 즉시 보내고 이후 마지막 실제 fix를 **정지 중에도 3초마다** `location.update`로 보낸다. 첫 fix 전·Sharing 밖·연결 끊김·미동기화·4401·4409에서는 전송하지 않는다. 일반 끊김 동안 전송을 멈추고 같은 세션의 권위 있는 `session.state sharing` 이후 재개한다. 새 세션·종료·`appClosed()`는 이전 내 위치와 heartbeat를 정리한다.
+- **서비스와 알림**: `LocationShareService`는 Sharing·위치 권한 조건에서만 `foregroundServiceType="location"`으로 실행한다. ongoing 알림은 **"엄마 차와 위치 공유 중"**과 **"끝내기"** 액션이며, 액션은 화면과 같은 수동 종료 경로를 사용한다. Android 13 이상 알림 권한 거부는 위치 정밀도와 독립적으로 첫 fix 전부터 안내한다. 최신 캡처에서 두 안내의 독립 표시를 확인했다. 알림 거부만으로 coarse의 서비스 실행 자격을 바꾸지 않는다. 정상 시작한 Sharing 서비스는 앱이 뒤로 가거나 화면이 꺼져도 GPS를 계속 구독한다. 종료·4401·4409에서는 서비스·GPS·heartbeat를 멈춘다.
+- **API 34 시작 제한**: 백그라운드 WebSocket에서 수락·공유 복원을 받았다는 이유만으로 위치 FGS를 자동 시작하지 않는다. Activity가 보일 때 실행 조건을 다시 확인하고 시작·재시도한다. 시작 제한·보안 예외는 안내로 처리한다. 이미 실행 중인 정상 Sharing 서비스의 백그라운드 GPS 지속과 구분한다.
+- **실제 지도와 HUD**: P4 `SharingMap.kt`는 차와 같은 **osmdroid 6.1.20(OpenStreetMap)**이며 User-Agent·`CopyrightOverlay`·`clipToBounds`를 적용한다. 양쪽 지도는 같은 WGS84 차·탑승자 좌표를 쓰고 차는 네이비 `#002C5F`, 탑승자는 시안 `#00AAD2`다. 마커가 보이도록 범위를 맞추고 출처를 가리지 않는다. `CopyrightOverlay.setTextSize(11)`로 density에 따른 출처 잘림을 수정했다. 위치 없음 배너는 양쪽 위치가 모두 없을 때만 표시하며, 최신 권한 거부 캡처에서 단일 실제 차 마커가 가려지지 않음을 확인했다. **지도 아래** HUD의 거리는 내 GPS→차 직선거리, 화살표는 차 방위−유효 GPS course인 "이동 기준", ETA는 **수신 `peer.eta`만** 사용한다. 폰에서 ETA를 추정하지 않는다. 부족한 값은 `—`이며 좌표 숫자·지도 준비 문구·샘플 값은 표시하지 않는다. 기존 로컬 그림은 `PreviewSharingMap.kt`로 옮겨 debug 미리보기에서만 사용하며 GPS를 수집하지 않는다.
+- **최근 앱 제거**: 실행 중인 서비스의 `onTaskRemoved` → `PhoneSessionManager.appClosed()`는 활성·연결·동기화 상태에서 `session.end(app_closed)`를 최선 노력으로 보내고 GPS·heartbeat·소켓과 자동 재시도를 멈춘다. 전송 큐 수락은 서버 수신 보장이 아니다. 오프라인 종료는 영구 큐에 넣지 않으며, 다시 열면 서버 상태로 복원한다. 현재 서버는 reason을 읽지 않고 항상 `session.ended(manual)`을 알린다.
+- **종료 보장의 경계**: Android 강제 종료(force-stop)·작업 관리자 Stop은 콜백을 보장하지 않는다. Requesting·위치 권한 거부 상태에는 위치 FGS가 없으므로 최근 앱 스와이프의 즉시 종료도 보장하지 않는다. 종료가 전달되지 않으면 서버는 Sharing의 마지막 위치 수신(없으면 승인) 후 **2분 초과**를 만료 검사 때 `peer_lost`로 처리한다. Requesting은 생성 후 5분 이상이면 `request_timeout`이다. 타임아웃은 PROTOCOL.md 4절을 따른다.
 
 ## 6. P1/P2 검증 이력과 UI 재설계 검증 상태
 
@@ -199,7 +205,7 @@ P3는 다음 구성으로 실제 통신과 UI 소유권을 나눈다. P4 두 항
 
 ## 7. P3 검증 결과
 
-문서 작성 담당은 빌드·테스트·서버·에뮬레이터를 실행하지 않았다. 아래는 메인이 제공한 자동 테스트와 최신 APK의 실제 서버·차/폰 에뮬레이터 검증 결과다. P3 기능·네이티브 검증을 완료했고 소스·테스트·Manifest의 독립 검토도 승인됐다. 중간 실행 이력과 최종 결과를 구분한다.
+문서 작성 담당은 빌드·테스트·서버·에뮬레이터를 실행하지 않았다. 아래는 P3 완료 커밋 `f5c7502`까지 메인이 제공한 자동 테스트와 당시 최신 APK의 실제 서버·차/폰 에뮬레이터 검증 이력이다. P3 기능·네이티브 검증을 완료했고 소스·테스트·Manifest의 독립 검토도 승인됐다. 중간 실행 이력과 최종 결과를 구분하며 P4 결과로 대체하지 않는다.
 
 - **이전 중간 결과**: 첫 폰 경계 검증에서 69개 통과, 실패·건너뜀 0(API 8·transport 12·wire 3·Prefs 4·LiveState 2·실제/미리보기 controller 16·기존 P2 ViewModel 16·나침반 8). 세션 매니저 31개 구현 전의 결과이며 아래 새 통합 실행과 구분한다.
 - **수정 전 통합 검증 이력**: `--rerun-tasks` 실행이 21초·81개 태스크 실행으로 성공했다. 당시 phone 103개 + app 50개 + protocol 9개 = 162개, 실패·오류·건너뜀 0이었다. 이후 요청 응답 기한 문제를 수정했으므로 현재 폰 결과는 다음 재실행을 기준으로 한다.
@@ -212,7 +218,7 @@ P3는 다음 구성으로 실제 통신과 UI 소유권을 나눈다. P4 두 항
 - **미리보기 격리와 기본 진입**: debug에서 명시적으로 미리보기에 진입해 로컬 요청을 실행했으며 차는 Idle을 유지해 실제 요청이 전송되지 않음을 확인했다. 폰을 강제 종료·재실행하면 저장된 미리보기 대신 실제 LIVE·Unpaired로 시작했다. 근거는 `phone-preview-isolated.png`, `car-idle-during-preview.png`, `phone-live-after-preview-restart.png`다.
 - **최종 APK 정상 흐름 재확인**: 위 예외 검증 후 새 차 화면 코드로 다시 페어링하고 폰 요청 → 차 UI 수락 → 폰 공유 화면의 실제 수신 차량 좌표·중립 나침반 → 폰 직접 종료·양쪽 종료 안내를 다시 확인했다. 근거는 `phone-final-paired-home.png`, `phone-final-sharing.png`, `phone-final-ended-manual.png`, `car-final-ended-manual.png`, `phone-final-home.png`다. PNG는 `build/p3-phone-qa/emulator-5556/`와 `emulator-5554/`에 있으며 문서에 실제 연결 코드를 기록하거나 이미지를 삽입하지 않는다.
 
-| 항목 | 현재 기록 |
+| 항목 | P3 당시 기록 |
 |---|---|
 | REST·토큰 저장·WebSocket·상태 전이·실제/미리보기 경계 단위 테스트 | 응답 기한 수정 후 phone 111개 통과, 세션 매니저 42개·기존 P2 테스트 포함 |
 | `:phone:testDebugUnitTest :phone:assembleDebug :phone:lintDebug` | 성공, lint 오류 0·경고 10개 |
@@ -227,3 +233,29 @@ P3는 다음 구성으로 실제 통신과 UI 소유권을 나눈다. P4 두 항
 | release APK 런타임 | 미검증 |
 | API 26 설치·런타임 | 미검증 |
 | GPS·위치 권한·위치 서비스·양쪽 실제 지도 | P4 범위, P3 검증에 포함하지 않음 |
+
+## 8. P4 검증 결과
+
+**P3 `f5c7502` 기반 P4 구현과 합의한 debug 범위의 main QA를 완료했으며 TASKS.md의 P4를 체크한다.** 아래는 main 제공 실행·네이티브 근거이며 문서 작성 담당이 테스트·빌드·기기를 실행한 결과가 아니다. 7절의 phone 111개·합계 170개와 P1/P2 결과·캡처는 과거 이력으로 유지한다. QA 산출물은 `build/p4-phone-qa/`이며 main이 `native-qa.json`과 전체 `server-runtime-final.log`(97,721바이트)를 최종 저장했다. 변경·보호 파일 목록은 `.omc/qa/p4-20261107/final-manifest.json`·`changed-files.md`에서 관리한다.
+
+| 검증 항목 | main 제공 결과 |
+|---|---|
+| P4 초기 통합 테스트·빌드 | 27초·81개 태스크 실행. phone 175 + app 50 + protocol 9 = **234개**, 실패·오류·건너뜀 0. `green-integration`은 course 회귀 수정 전 이력 |
+| GPS course 회귀 RED → GREEN | 수정 전 9개 중 8개가 실제 `AssertionFailedError`로 실패. 유효 속도 임계 조건·GPS 변위 fallback 수정 후 **28초·81개 태스크 실행**, phone **184** + app **50** + protocol **9** = **243개** 통과, 실패·오류·건너뜀 0 |
+| 안내·배너 수정 후 최종 전체 실행 | **29초·81개 태스크 실행**, phone **184** + app **50** + protocol **9** = **243개 GREEN**, 실패·오류·건너뜀 **0**. 보관 기록 **`green-notices`**, lint **오류 0·경고 12개** |
+| 마지막 상수 정리 후 증분 실행·설치 | **27초·실행 15·UP-TO-DATE 66**, phone **184개 재실행 통과**. app 50개·protocol 9개는 직전 새 전체 실행 결과를 유지한 UP-TO-DATE이며 243개 전부를 다시 실행했다는 뜻은 아님. lint 오류 0·경고 12개, 최신 debug APK 설치 **Success** |
+| 위치 권한 거부·실제 요청·Sharing | 거부 후 실제 차에 요청 도착·Sharing 진입, 내 GPS·위치 FGS 없음. 최신 **`final-permission-denied-marker`**에서 네이비 차 마커가 가려지지 않고 권한·알림 안내는 지도 밖에 표시되며 HUD는 미확인값 |
+| coarse-only·알림 거부 | **fine=false/coarse=true·notification denied**에서 Sharing·FGS 실행. 초기 LOW_POWER·10분 간격/GNSS 꺼짐 상태로 fix가 지연됐으나 **`final-coarse-notification-denied`**에서 실제 난독화 coarse GPS와 화면 **1286m**, 정밀도·알림 차단 안내 둘 다 확인. 영구 수신 불가나 적시·정밀 GPS 보장을 뜻하지 않음 |
+| 최신 정상 공유·수신 ETA | fine 복구 후 **`latest-sharing-phone`·`latest-sharing-car`**: 폰 **258m**·차 **257m**, 폰 정지 course **`—`**, 주기 업데이트 수신 후 양쪽 ETA **약 1분** |
+| 같은 fix로 정렬한 양쪽 지도 | **`final-sharing-phone-aligned`·`final-sharing-car-aligned`**: 양쪽 **189m**, 폰 정지 course **`—`**, 수신 ETA **44초**·차 분 단위 표시 **1분**. 앞선 **`final-academy`**도 정지 course `—`·258m·ETA 1분 확인 |
+| 지도 출처·작은 화면·큰 글꼴 | `CopyrightOverlay.setTextSize(11)` 수정 후 일반 배율 및 **320dp·글꼴 1.3**에서 전체 출처 문구 표시, 스크롤 후 하단 종료 버튼 접근 확인. 글꼴 **1.0**·density **420**으로 복구 |
+| 화면 꺼짐·정지 heartbeat | **141.237초** 동안 3초 heartbeat 지속, `peer_lost` 없음 |
+| 백그라운드 수락·화면 복귀 | Home으로 앱을 뒤에 둔 뒤 수락 시 위치 FGS 없음. 화면 복귀 후 location FGS 타입 **0x8**·GPS 시작 |
+| 실제 GPS 이동·Nearby·실내등 | 실제 폰 GPS를 **15단계·3초 간격** 이동. **23:39:52.553, 34m**에서 Nearby·폰 실내등 ON 안내 확인. 대역 스크립트 검증과 구분 |
+| RR 문 탑승 종료·실내등 복구 | Virtual Console RR 열림 **23:40:30**·닫힘 **23:40:35**, 서버 `boarded` **23:40:35.876**, 차 실내등 **OFF** 복구·폰 홈 복귀·위치 서비스 제거 |
+| 실제 최근 앱 제거·app_closed | **150ms** 스와이프로 실제 카드 제거, 서비스 `onTaskRemoved`·`app_closed` 콜백 로그 **23:43:21.498**. 서버 `manual` 종료 로그 **23:43:21.089**도 main 확인. 각 로그의 기록 시각이며 일반적인 콜백 보장을 뜻하지 않음 |
+| 최신 알림 끝내기 | **23:56:48.887** 서버 `session.end`·`session.ended(manual)` 확인. **`latest-ended-home`·`latest-ended-car`** 캡처와 `dumpsys`의 FGS **(nothing)** 확인. 앞선 알림 종료에서도 양쪽 manual 종료·서비스 제거 확인 |
+| 보호 파일·변경 목록 | main 제공 **37개 변경 파일·보호 파일 80개 일치**, 범위 밖 추가 파일 없음. HEAD **`f5c7502`**·브랜치 유지·diff check 정상. 최종 문서 저장 후 main이 manifest를 재생성 |
+| QA signoff·독립 검토 | 합의한 P4 debug 범위 **main QA 완료**. 독립 검토 결과는 최종 QA 근거와 함께 관리한다 |
+
+**검증 경계**: 실물 기기·API 26 설치/런타임·release 런타임은 미검증이다. P4의 재연결·새 세션·4401/4409 정리·오프라인 종료·타임아웃은 자동 회귀와 5절의 구현 경계로 구분하며 새 네이티브 검증을 주장하지 않는다. coarse는 실제 fix를 받았지만 이 에뮬레이터의 초기 지연이 있어 적시·정확한 이동에는 fine이 필요하다. force-stop·작업 관리자 Stop·위치 FGS 없는 Requesting/권한 거부 상태의 최근 앱 제거 콜백은 보장되지 않고, 오프라인 종료는 큐에 남기지 않으며 서버 heartbeat 2분 초과 만료가 대안이다. 보호된 차 앱에서 두 점이 0m로 겹칠 때 세계 범위로 확대되는 기존 현상은 이번 범위 밖이며 변경하지 않았다.

@@ -1,5 +1,6 @@
 package com.maejung.phone.session
 
+import com.maejung.phone.location.LocationFix
 import com.maejung.phone.net.ConnectionState
 import com.maejung.phone.store.StoredPairing
 import com.maejung.protocol.PeerEta
@@ -20,6 +21,8 @@ data class LivePhoneState(
     val peerLocation: PeerLocation? = null,
     val eta: PeerEta? = null,
     val lightOn: Boolean? = null,
+    val ownLocation: LocationFix? = null,
+    val locationNotice: String? = null,
 ) {
     val canRequest: Boolean
         get() = phase == PhonePhase.IDLE && pairing != null &&

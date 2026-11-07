@@ -1,5 +1,6 @@
 package com.maejung.phone.session
 
+import com.maejung.phone.location.LocationFix
 import com.maejung.phone.net.ApiException
 import com.maejung.phone.net.ConnectionState
 import com.maejung.phone.net.PairingApi
@@ -8,6 +9,7 @@ import com.maejung.phone.store.PairingStore
 import com.maejung.phone.store.StoredPairing
 import com.maejung.protocol.ClientMessage
 import com.maejung.protocol.ErrorMessage
+import com.maejung.protocol.LocationUpdate
 import com.maejung.protocol.Message
 import com.maejung.protocol.PairingResult
 import com.maejung.protocol.PeerEta
@@ -951,6 +953,340 @@ class PhoneSessionManagerTest {
         assertNull(f.state.error)
     }
 
+    @Test
+    fun `sharing without a GPS fix never sends a location heartbeat`() = runTest {
+        val f = fixture()
+        sharing(f)
+        advanceTimeBy(123_000)
+        runCurrent()
+        assertNull(f.state.ownLocation)
+        assertTrue(f.transport.sent.isEmpty())
+    }
+
+    @Test
+    fun `GPS fixes before sharing are neither cached nor sent after acceptance`() = runTest {
+        val f = fixture()
+        ready(f)
+        f.manager.updateOwnLocation(FIX)
+        f.manager.requestPickup()
+        runCurrent()
+        f.transport.receive(PickupPending, "s_1")
+        runCurrent()
+        f.manager.updateOwnLocation(FIX)
+        f.transport.receive(PickupAccepted, "s_1")
+        runCurrent()
+        advanceTimeBy(6_000)
+        runCurrent()
+        assertNull(f.state.ownLocation)
+        assertEquals(listOf<ClientMessage>(PickupRequest("민지")), f.transport.sent)
+    }
+
+    @Test
+    fun `first fix sends immediately and latest fix repeats at the original three second boundary`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        assertEquals(FIX, f.state.ownLocation)
+        assertEquals(listOf<ClientMessage>(LocationUpdate(37.4983, 127.0628, 4f)), f.transport.sent)
+        runCurrent()
+        advanceTimeBy(2_000)
+        runCurrent()
+        val latest = FIX.copy(lat = 37.4984, courseDegrees = 90f)
+        f.manager.updateOwnLocation(latest)
+        advanceTimeBy(999)
+        runCurrent()
+        assertEquals(1, f.transport.sent.size)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(latest, f.state.ownLocation)
+        assertEquals(LocationUpdate(37.4984, 127.0628, 4f), f.transport.sent.last())
+        assertEquals(2, f.transport.sent.size)
+    }
+
+    @Test
+    fun `stationary latest fix keeps heartbeating beyond two minutes`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        advanceTimeBy(123_000)
+        runCurrent()
+        assertEquals(42, f.transport.sent.size)
+        assertTrue(f.transport.sent.all { it == LocationUpdate(37.4983, 127.0628, 4f) })
+    }
+
+    @Test
+    fun `invalid GPS coordinates accuracy and course preserve the last valid fix`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        for (invalid in listOf(
+            FIX.copy(lat = Double.NaN), FIX.copy(lng = Double.NaN),
+            FIX.copy(lat = Double.POSITIVE_INFINITY), FIX.copy(lng = Double.NEGATIVE_INFINITY),
+            FIX.copy(lat = 90.001), FIX.copy(lat = -90.001),
+            FIX.copy(lng = 180.001), FIX.copy(lng = -180.001),
+            FIX.copy(accuracy = Float.NaN), FIX.copy(accuracy = Float.POSITIVE_INFINITY),
+            FIX.copy(accuracy = -1f), FIX.copy(courseDegrees = Float.NaN),
+            FIX.copy(courseDegrees = Float.POSITIVE_INFINITY), FIX.copy(courseDegrees = Float.NEGATIVE_INFINITY),
+        )) {
+            f.manager.updateOwnLocation(invalid)
+            assertEquals(FIX, f.state.ownLocation)
+        }
+        advanceTimeBy(3_000)
+        runCurrent()
+        assertEquals(listOf<ClientMessage>(
+            LocationUpdate(37.4983, 127.0628, 4f), LocationUpdate(37.4983, 127.0628, 4f),
+        ), f.transport.sent)
+        val boundary = LocationFix(-90.0, 180.0, 0f, courseDegrees = 0f)
+        f.manager.updateOwnLocation(boundary)
+        assertEquals(boundary, f.state.ownLocation)
+    }
+
+    @Test
+    fun `ordinary reconnect retains the latest fix but waits for the same session snapshot`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.transport.connection.value = ConnectionState.DISCONNECTED
+        runCurrent()
+        f.manager.reconnect()
+        runCurrent()
+        f.transport.connection.value = ConnectionState.CONNECTED
+        runCurrent()
+        advanceTimeBy(9_000)
+        runCurrent()
+        assertEquals(FIX, f.state.ownLocation)
+        assertEquals(1, f.transport.sent.size)
+        sharing(f)
+        advanceTimeBy(3_000)
+        runCurrent()
+        assertTrue(f.transport.sent.size >= 2)
+        assertTrue(f.transport.sent.all { it == LocationUpdate(37.4983, 127.0628, 4f) })
+    }
+
+    @Test
+    fun `live terminal transport gate prevents sends before its notification is collected`() = runTest {
+        for (terminal in listOf(ConnectionState.REPLACED, ConnectionState.UNAUTHORIZED)) {
+            val f = fixture()
+            sharing(f)
+            f.manager.updateOwnLocation(FIX)
+            runCurrent()
+            advanceTimeBy(2_999)
+            runCurrent()
+            f.transport.connection.deferNotification(terminal)
+            f.manager.updateOwnLocation(FIX.copy(lat = 37.4984))
+            advanceTimeBy(10_000)
+            runCurrent()
+            assertEquals(1, f.transport.sent.size, terminal.name)
+            assertEquals(listOf("token_1"), f.transport.tokens)
+            f.manager.close()
+        }
+    }
+
+    @Test
+    fun `new session snapshot discards old fix and cancels its heartbeat`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        advanceTimeBy(1_000)
+        runCurrent()
+        sharing(f, "s_2")
+        assertNull(f.state.ownLocation)
+        advanceTimeBy(9_000)
+        runCurrent()
+        assertEquals(1, f.transport.sent.size)
+        f.manager.updateOwnLocation(FIX.copy(lat = 37.4984))
+        assertEquals(2, f.transport.sent.size)
+    }
+
+    @Test
+    fun `requested snapshot clears the previous sharing fix`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.transport.receive(SessionState("requested", "r_1", "민지"), "s_1")
+        runCurrent()
+        assertNull(f.state.ownLocation)
+        advanceTimeBy(9_000)
+        runCurrent()
+        assertEquals(1, f.transport.sent.size)
+    }
+
+    @Test
+    fun `clearing own location stops heartbeats and a later fix sends immediately`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.manager.clearOwnLocation()
+        assertNull(f.state.ownLocation)
+        advanceTimeBy(9_000)
+        runCurrent()
+        assertEquals(1, f.transport.sent.size)
+        f.manager.updateOwnLocation(FIX)
+        assertEquals(2, f.transport.sent.size)
+    }
+
+    @Test
+    fun `location notice is separate from session errors and can be cleared`() = runTest {
+        val f = fixture()
+        ready(f)
+        f.manager.setLocationNotice("위치 권한을 허용해 주세요")
+        assertEquals("위치 권한을 허용해 주세요", f.state.locationNotice)
+        assertNull(f.state.error)
+        assertTrue(f.state.canRequest)
+        f.manager.setLocationNotice(null)
+        assertNull(f.state.locationNotice)
+    }
+
+    @Test
+    fun `manual end clears own location and cancels heartbeats`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.manager.endSession()
+        assertNull(f.state.ownLocation)
+        assertEquals(SessionEnd("manual"), f.transport.sent.last())
+        advanceTimeBy(12_000)
+        runCurrent()
+        assertEquals(2, f.transport.sent.size)
+        f.manager.updateOwnLocation(FIX)
+        assertNull(f.state.ownLocation)
+    }
+
+    @Test
+    fun `server end clears own location for every supported reason`() = runTest {
+        for (reason in listOf("boarded", "rejected", "manual", "request_timeout", "peer_lost", "max_duration")) {
+            val f = fixture()
+            sharing(f)
+            f.manager.updateOwnLocation(FIX)
+            runCurrent()
+            f.transport.receive(SessionEnded(reason), "s_1")
+            runCurrent()
+            assertNull(f.state.ownLocation, reason)
+            advanceTimeBy(6_000)
+            runCurrent()
+            assertEquals(1, f.transport.sent.size, reason)
+            f.manager.close()
+        }
+    }
+
+    @Test
+    fun `unauthorized connection drops cached GPS along with credentials`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.transport.connection.value = ConnectionState.UNAUTHORIZED
+        runCurrent()
+        assertNull(f.state.ownLocation)
+        f.manager.updateOwnLocation(FIX)
+        advanceTimeBy(9_000)
+        runCurrent()
+        assertNull(f.state.ownLocation)
+        assertEquals(1, f.transport.sent.size)
+    }
+
+    @Test
+    fun `app closed sends app_closed once then stops location and socket retries`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.manager.appClosed()
+        f.manager.appClosed()
+        assertEquals(SessionEnd("app_closed"), f.transport.sent.last())
+        assertEquals(2, f.transport.sent.size)
+        assertNull(f.state.ownLocation)
+        assertFalse(f.state.isActive)
+        assertFalse(f.state.synchronized)
+        assertEquals(1, f.transport.closeCalls)
+        f.manager.updateOwnLocation(FIX)
+        advanceTimeBy(20_000)
+        runCurrent()
+        assertEquals(2, f.transport.sent.size)
+        assertEquals(listOf("token_1"), f.transport.tokens)
+    }
+
+    @Test
+    fun `offline app closed never queues an end and explicit reconnect can reopen the manager`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.transport.connection.value = ConnectionState.DISCONNECTED
+        runCurrent()
+        f.manager.appClosed()
+        assertNull(f.state.ownLocation)
+        assertTrue(f.transport.closeCalls > 0)
+        f.transport.connection.value = ConnectionState.CONNECTED
+        f.transport.receive(SessionState("sharing", "r_1", "민지"), "s_1")
+        runCurrent()
+        f.manager.updateOwnLocation(FIX)
+        advanceTimeBy(6_000)
+        runCurrent()
+        assertEquals(1, f.transport.sent.size)
+        f.manager.reconnect()
+        runCurrent()
+        assertEquals(listOf("token_1", "token_1"), f.transport.tokens)
+        assertFalse(f.state.synchronized)
+        sharing(f)
+        assertNull(f.state.ownLocation)
+        f.manager.updateOwnLocation(FIX)
+        assertEquals(2, f.transport.sent.size)
+        assertTrue(f.transport.sent.none { it is SessionEnd })
+    }
+
+    @Test
+    fun `connected but unsynchronized app closed sends no session end`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.reconnect()
+        runCurrent()
+        f.transport.connection.value = ConnectionState.CONNECTED
+        runCurrent()
+        f.manager.appClosed()
+        assertTrue(f.transport.sent.isEmpty())
+        assertTrue(f.transport.closeCalls > 0)
+    }
+
+    @Test
+    fun `app closed cancels a pending pickup deadline without later reconnect`() = runTest {
+        val f = fixture()
+        ready(f)
+        f.manager.requestPickup()
+        runCurrent()
+        f.manager.appClosed()
+        advanceTimeBy(20_000)
+        runCurrent()
+        assertEquals(listOf<ClientMessage>(PickupRequest("민지"), SessionEnd("app_closed")), f.transport.sent)
+        assertEquals(listOf("token_1"), f.transport.tokens)
+        assertFalse(f.state.isActive)
+    }
+
+    @Test
+    fun `manager close clears GPS and ignores late fixes without cancelling its parent scope`() = runTest {
+        val f = fixture()
+        sharing(f)
+        f.manager.updateOwnLocation(FIX)
+        runCurrent()
+        f.manager.close()
+        assertNull(f.state.ownLocation)
+        val closed = f.state
+        f.manager.updateOwnLocation(FIX)
+        f.manager.setLocationNotice("late callback")
+        f.manager.reconnect()
+        advanceTimeBy(9_000)
+        runCurrent()
+        assertEquals(closed, f.state)
+        assertEquals(1, f.transport.sent.size)
+    }
+
     private fun TestScope.fixture(
         pairing: StoredPairing? = PAIRING,
         snapshotOnConnect: Received? = null,
@@ -1053,5 +1389,6 @@ class PhoneSessionManagerTest {
 
     private companion object {
         val PAIRING = StoredPairing("r_1", "v_1", "token_1", "민지")
+        val FIX = LocationFix(37.4983, 127.0628, 4f)
     }
 }

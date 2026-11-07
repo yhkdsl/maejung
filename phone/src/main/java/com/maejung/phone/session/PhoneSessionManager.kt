@@ -1,5 +1,6 @@
 package com.maejung.phone.session
 
+import com.maejung.phone.location.LocationFix
 import com.maejung.phone.net.ApiException
 import com.maejung.phone.net.ConnectionState
 import com.maejung.phone.net.PairingApi
@@ -10,6 +11,7 @@ import com.maejung.protocol.EndReasons
 import com.maejung.protocol.ErrorCodes
 import com.maejung.protocol.ErrorMessage
 import com.maejung.protocol.EtaSources
+import com.maejung.protocol.LocationUpdate
 import com.maejung.protocol.PeerEta
 import com.maejung.protocol.PeerLight
 import com.maejung.protocol.PeerLocation
@@ -33,7 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-/** Application-owned P3 session state. GPS and location-service lifecycle belong to P4. */
+/** Application-owned session state and Sharing-only location heartbeat. */
 class PhoneSessionManager(
     private val api: PairingApi,
     private val store: PairingStore,
@@ -54,23 +56,26 @@ class PhoneSessionManager(
     val state: StateFlow<LivePhoneState> = mutableState.asStateFlow()
 
     private var closed = false
+    private var appStopped = false
     private var pairingJob: Job? = null
     private var pairingAttempt = 0L
     private var requestTimeout: Job? = null
     private var requestAttempt = 0L
     private var endedTimer: Job? = null
     private var endedAttempt = 0L
+    private var locationHeartbeat: Job? = null
+    private var locationAttempt = 0L
 
     init {
         // A replay-free transport may emit its initial snapshot from connect itself.
         managerScope.launch(start = CoroutineStart.UNDISPATCHED) {
             transport.incoming.collect { received ->
-                synchronized(lock) { if (!closed) onReceived(received) }
+                synchronized(lock) { if (!closed && !appStopped) onReceived(received) }
             }
         }
         managerScope.launch(start = CoroutineStart.UNDISPATCHED) {
             transport.connection.collect {
-                synchronized(lock) { if (!closed) onConnectionChanged() }
+                synchronized(lock) { if (!closed && !appStopped) onConnectionChanged() }
             }
         }
         synchronized(lock) {
@@ -81,7 +86,7 @@ class PhoneSessionManager(
     fun pair(code: String, riderName: String) {
         synchronized(lock) {
             val current = mutableState.value
-            if (closed || current.phase != PhonePhase.UNPAIRED || current.pairingInProgress) return
+            if (closed || appStopped || current.phase != PhonePhase.UNPAIRED || current.pairingInProgress) return
             val name = riderName.trim()
             if (code.length != 6 || code.any { it !in '0'..'9' } || name.length !in 1..20) {
                 mutableState.value = current.copy(error = CODE_PROMPT)
@@ -119,11 +124,12 @@ class PhoneSessionManager(
     fun requestPickup() {
         synchronized(lock) {
             val current = mutableState.value
-            if (closed || !current.canRequest || transport.connection.value != ConnectionState.CONNECTED) return
+            if (closed || appStopped || !current.canRequest || transport.connection.value != ConnectionState.CONNECTED) return
             cancelRequestTimeout()
+            cancelLocationHeartbeat()
             mutableState.value = current.copy(
                 phase = PhonePhase.REQUESTING, sessionId = null, error = null, endReason = null,
-                peerLocation = null, eta = null, lightOn = null,
+                peerLocation = null, eta = null, lightOn = null, ownLocation = null,
             )
             if (!transport.send(PickupRequest(requireNotNull(current.pairing).riderName))) {
                 returnIdle(CONNECTION_PROMPT)
@@ -135,7 +141,7 @@ class PhoneSessionManager(
             requestTimeout = managerScope.launch {
                 delay(10_000)
                 synchronized(lock) {
-                    if (!closed && attempt == requestAttempt &&
+                    if (!closed && !appStopped && attempt == requestAttempt &&
                         mutableState.value.phase == PhonePhase.REQUESTING && mutableState.value.sessionId == null
                     ) {
                         returnIdle(CONNECTION_PROMPT, requireSnapshot = true)
@@ -151,7 +157,7 @@ class PhoneSessionManager(
     fun endSession() {
         synchronized(lock) {
             val current = mutableState.value
-            if (closed || !current.isActive) return
+            if (closed || appStopped || !current.isActive) return
             // A failed end is not queued: keep the real session visible until the user retries.
             if (!current.synchronized || transport.connection.value != ConnectionState.CONNECTED ||
                 !transport.send(SessionEnd(EndReasons.MANUAL))
@@ -163,9 +169,64 @@ class PhoneSessionManager(
         }
     }
 
+    fun updateOwnLocation(fix: LocationFix) {
+        synchronized(lock) {
+            val current = mutableState.value
+            if (closed || appStopped || current.phase != PhonePhase.SHARING ||
+                current.pairing == null || current.sessionId.isNullOrBlank() ||
+                transport.connection.value in setOf(ConnectionState.REPLACED, ConnectionState.UNAUTHORIZED) ||
+                !validOwnLocation(fix)
+            ) return
+            mutableState.value = current.copy(ownLocation = fix)
+            startLocationHeartbeat()
+        }
+    }
+
+    fun clearOwnLocation() {
+        synchronized(lock) {
+            if (closed) return
+            cancelLocationHeartbeat()
+            mutableState.value = mutableState.value.copy(ownLocation = null)
+        }
+    }
+
+    fun setLocationNotice(message: String?) {
+        synchronized(lock) {
+            if (closed || appStopped) return
+            mutableState.value = mutableState.value.copy(locationNotice = message)
+        }
+    }
+
+    /** Task removal is best effort, with no queued end or automatic socket retry. */
+    fun appClosed() {
+        synchronized(lock) {
+            if (closed || appStopped) return
+            appStopped = true
+            val current = mutableState.value
+            pairingAttempt++
+            pairingJob?.cancel()
+            cancelRequestTimeout()
+            cancelEndedTimer()
+            cancelLocationHeartbeat()
+            if (current.isActive && current.synchronized &&
+                current.connection == ConnectionState.CONNECTED && transport.connection.value == ConnectionState.CONNECTED
+            ) {
+                runCatching { transport.send(SessionEnd(EndReasons.APP_CLOSED)) }
+            }
+            if (current.isActive) enterEnded(EndReasons.APP_CLOSED)
+            mutableState.value = mutableState.value.copy(
+                connection = ConnectionState.DISCONNECTED, synchronized = false, pairingInProgress = false,
+                ownLocation = null, locationNotice = null, peerLocation = null, eta = null, lightOn = null,
+            )
+            transport.close()
+        }
+    }
+
     fun reconnect() {
         synchronized(lock) {
-            if (closed || mutableState.value.pairing == null) return
+            if (closed) return
+            appStopped = false
+            if (mutableState.value.pairing == null) return
             connectLocked()
         }
     }
@@ -177,13 +238,17 @@ class PhoneSessionManager(
             pairingAttempt++
             cancelRequestTimeout()
             cancelEndedTimer()
-            mutableState.value = mutableState.value.copy(pairingInProgress = false)
+            cancelLocationHeartbeat()
+            mutableState.value = mutableState.value.copy(
+                pairingInProgress = false, ownLocation = null, locationNotice = null,
+            )
             managerJob.cancel()
             transport.close()
         }
     }
 
     private fun connectLocked() {
+        if (closed || appStopped) return
         val pairing = mutableState.value.pairing ?: return
         // Reconnect attempts must preserve an unbound request's original acknowledgement deadline.
         mutableState.value = mutableState.value.copy(
@@ -200,6 +265,7 @@ class PhoneSessionManager(
             pairingJob?.cancel()
             cancelRequestTimeout()
             cancelEndedTimer()
+            cancelLocationHeartbeat()
             store.clear()
             mutableState.value = LivePhoneState(
                 connection = ConnectionState.UNAUTHORIZED,
@@ -209,6 +275,7 @@ class PhoneSessionManager(
             return
         }
         val current = mutableState.value
+        if (connection == ConnectionState.REPLACED) cancelLocationHeartbeat()
         mutableState.value = current.copy(
             connection = connection,
             // CONNECTED may be observed after its snapshot; preserve synchronization in that case.
@@ -282,6 +349,7 @@ class PhoneSessionManager(
                 cancelEndedTimer()
                 val sharing = snapshot.state == SessionStates.SHARING
                 val clearTelemetry = current.sessionId != sessionId || !sharing
+                if (clearTelemetry) cancelLocationHeartbeat()
                 mutableState.value = current.copy(
                     phase = if (sharing) PhonePhase.SHARING else PhonePhase.REQUESTING,
                     connection = ConnectionState.CONNECTED,
@@ -292,7 +360,9 @@ class PhoneSessionManager(
                     peerLocation = if (clearTelemetry) null else current.peerLocation,
                     eta = if (clearTelemetry) null else current.eta,
                     lightOn = if (clearTelemetry) null else current.lightOn,
+                    ownLocation = if (clearTelemetry) null else current.ownLocation,
                 )
+                if (sharing) startLocationHeartbeat()
             }
             else -> Unit
         }
@@ -309,12 +379,60 @@ class PhoneSessionManager(
             location.lng.isFinite() && location.lng in -180.0..180.0 &&
             location.accuracy.isFinite() && location.accuracy >= 0f
 
+    private fun validOwnLocation(fix: LocationFix): Boolean =
+        fix.lat.isFinite() && fix.lat in -90.0..90.0 &&
+            fix.lng.isFinite() && fix.lng in -180.0..180.0 &&
+            fix.accuracy.isFinite() && fix.accuracy >= 0f &&
+            (fix.courseDegrees == null || fix.courseDegrees.isFinite())
+
+    private fun startLocationHeartbeat() {
+        val current = mutableState.value
+        val sessionId = current.sessionId?.takeIf { it.isNotBlank() } ?: return
+        if (closed || appStopped || current.phase != PhonePhase.SHARING || current.ownLocation == null ||
+            locationHeartbeat?.isActive == true
+        ) return
+        val attempt = locationAttempt
+        sendOwnLocation(sessionId)
+        // A synchronous transport callback may already have ended or replaced this session.
+        if (attempt != locationAttempt || closed || appStopped) return
+        locationHeartbeat = managerScope.launch {
+            while (true) {
+                delay(3_000)
+                synchronized(lock) {
+                    val latest = mutableState.value
+                    if (closed || appStopped || attempt != locationAttempt || latest.sessionId != sessionId ||
+                        latest.phase != PhonePhase.SHARING || latest.ownLocation == null
+                    ) return@launch
+                    sendOwnLocation(sessionId)
+                }
+            }
+        }
+    }
+
+    private fun sendOwnLocation(sessionId: String) {
+        val current = mutableState.value
+        val fix = current.ownLocation ?: return
+        if (!closed && !appStopped && current.phase == PhonePhase.SHARING && current.pairing != null &&
+            current.sessionId == sessionId && current.synchronized && current.connection == ConnectionState.CONNECTED &&
+            transport.connection.value == ConnectionState.CONNECTED
+        ) {
+            transport.send(LocationUpdate(fix.lat, fix.lng, fix.accuracy))
+        }
+    }
+
+    private fun cancelLocationHeartbeat() {
+        locationAttempt++
+        locationHeartbeat?.cancel()
+        locationHeartbeat = null
+    }
+
     private fun enterEnded(reason: String) {
         cancelRequestTimeout()
         cancelEndedTimer()
+        cancelLocationHeartbeat()
         mutableState.value = mutableState.value.copy(
             phase = PhonePhase.ENDED, error = null, endReason = reason,
-            peerLocation = null, eta = null, lightOn = null,
+            peerLocation = null, eta = null, lightOn = null, ownLocation = null, locationNotice = null,
         )
         val attempt = endedAttempt
         endedTimer = managerScope.launch {
@@ -330,10 +448,11 @@ class PhoneSessionManager(
     private fun returnIdle(error: String? = null, requireSnapshot: Boolean = false) {
         cancelRequestTimeout()
         cancelEndedTimer()
+        cancelLocationHeartbeat()
         mutableState.value = mutableState.value.copy(
             phase = PhonePhase.IDLE, sessionId = null, error = error, endReason = null,
             synchronized = mutableState.value.synchronized && !requireSnapshot,
-            peerLocation = null, eta = null, lightOn = null,
+            peerLocation = null, eta = null, lightOn = null, ownLocation = null, locationNotice = null,
         )
     }
 

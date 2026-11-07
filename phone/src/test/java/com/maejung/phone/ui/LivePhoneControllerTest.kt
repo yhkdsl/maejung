@@ -1,6 +1,7 @@
 package com.maejung.phone.ui
 
 import com.maejung.phone.net.ConnectionState
+import com.maejung.phone.location.LocationFix
 import com.maejung.phone.session.LivePhoneState
 import com.maejung.phone.session.PhonePhase
 import com.maejung.phone.store.StoredPairing
@@ -170,27 +171,29 @@ class LivePhoneControllerTest {
     }
 
     @Test
-    fun `live sharing projects only received telemetry and has no invented compass direction`() {
+    fun `P4 live sharing projects GPS separation and course while preserving received ETA and light`() {
         val live = ready().copy(
             phase = PhonePhase.SHARING, sessionId = "s_real",
-            peerLocation = PeerLocation(37.5, 127.1, 7f),
+            ownLocation = LocationFix(0.0, 0.0, 7f, 35f),
+            peerLocation = PeerLocation(0.0, .001, 7f),
             eta = PeerEta(77, 890, "navi"), lightOn = true,
         )
         assertEquals(LivePhoneScreen.SHARING, livePhoneScreen(live))
         val telemetry = assertNotNull(liveSharingInfo(live))
         assertEquals(77, telemetry.etaSeconds)
-        assertEquals(890, telemetry.distanceMeters)
+        assertEquals(111, telemetry.distanceMeters)
         assertEquals("navi", telemetry.etaSource)
         assertEquals(true, telemetry.lightOn)
-        assertNull(telemetry.bearingDegrees)
-        assertNull(telemetry.courseDegrees)
+        assertEquals(90, telemetry.bearingDegrees)
+        assertEquals(35, telemetry.courseDegrees)
     }
 
     @Test
     fun `missing live telemetry stays unknown instead of using the preview sample`() {
-        val telemetry = assertNotNull(liveSharingInfo(ready().copy(phase = PhonePhase.SHARING)))
+        val telemetry = assertNotNull(liveSharingInfo(ready().copy(phase = PhonePhase.SHARING,
+            eta = PeerEta(90, 890, "navi"))))
         assertNull(telemetry.distanceMeters)
-        assertNull(telemetry.etaSeconds)
+        assertEquals(90, telemetry.etaSeconds)
         assertNull(telemetry.lightOn)
         assertNull(telemetry.bearingDegrees)
         assertNull(telemetry.courseDegrees)

@@ -85,14 +85,9 @@ fun livePhoneScreen(state: LivePhoneState): LivePhoneScreen = when (state.phase)
     PhonePhase.ENDED -> LivePhoneScreen.ENDED
 }
 
-/** ETA meters are the car's reported route distance, never a derived GPS separation. */
+/** P4 separates actual GPS distance/course from the car's received ETA. */
 fun liveSharingInfo(state: LivePhoneState): SharingInfo? = if (state.phase == PhonePhase.SHARING) {
-    SharingInfo(
-        distanceMeters = state.eta?.meters?.takeIf { it >= 0 },
-        etaSeconds = state.eta?.seconds?.takeIf { it >= 0 },
-        etaSource = state.eta?.source,
-        lightOn = state.lightOn,
-    )
+    projectLiveSharingTelemetry(state.ownLocation, state.peerLocation, state.eta, state.lightOn)
 } else null
 
 fun canReconnectLivePhone(state: LivePhoneState): Boolean =
