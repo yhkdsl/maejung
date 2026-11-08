@@ -22,6 +22,7 @@
 | [docs/SERVER.md](docs/SERVER.md) | 서버 스택·구조·테스트·배포 |
 | [docs/CAR_APP.md](docs/CAR_APP.md) | 차 앱 모듈·패키지·상태 머신 표·화면 원칙 |
 | [docs/PHONE_APP.md](docs/PHONE_APP.md) | 폰 앱 P2 모듈·오프라인 UI와 P3 통신·P4 위치 전송 설계 |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | 로컬 실행·빌드, Railway 배포, release APK, 단계별 검증 기록(11/08 README에서 이동). 루트 README는 심사위원용 요약만 둔다 |
 
 ## 기획 문서 (Obsidian, 사업성·시나리오 원본)
 

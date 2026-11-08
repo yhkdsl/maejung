@@ -33,7 +33,7 @@
 |---|---|---|---|
 | U1 | 팀명 정하기 (APK 이름, 제출 메일 제목 `[차량용 앱 개발 공모전] 팀명_대표자명`) | D3 전 | 대기 |
 | U2 | 공식 접수양식(DOCX) 확인. 기획서를 양식 목차에 맞춰 재구성해야 한다. 사용자가 이전에 다운로드를 거절했으니 에이전트가 임의로 받지 않는다 | 기획서 최종본 전 | 대기 |
-| S5 | Railway에 서버 배포, 배포 URL 전달 (README "Railway 배포") | A5 이후 아무 때나, D3 전 필수 | 완료(11/08, `maejung-production.up.railway.app`) |
+| S5 | Railway에 서버 배포, 배포 URL 전달 (DEVELOPMENT.md "Railway 배포") | A5 이후 아무 때나, D3 전 필수 | 완료(11/08, `maejung-production.up.railway.app`) |
 | P1 | 기존 폰 에뮬레이터 이미지로 차·폰 동시 실행 확인 | P2 전 | 11/07 완료, 추가 다운로드 없음 |
 | A6 | 음성 인식 테스트 때 PC 마이크에 승인·거절 발화하기("응"/"아니") | A6 완료 전 | 대기 |
 | D4 | 시연 영상 녹화·편집 | 11/13 | 대기(촬영 대본 11/08 완료) |
@@ -125,7 +125,7 @@
   - 서버 `/health`와 기기·설치 앱을 먼저 확인한다. 기본 adb는 `~/Library/Android/sdk/platform-tools/adb`이며 serial·서버 주소는 인자/환경변수로 바꿀 수 있다. Virtual Console 기어 P·RR 문과 앱 요청·수락·화면 확인은 안내 후 총 9번 Enter를 기다린다. 실패·EOF·Ctrl-C 때 후속 단계를 실행하지 않는다.
   - 완료 기준: 스크립트 한 번으로 1~5단계가 재현됨.
   - 실행 결과: 기존 `MinjiP3` 폰 연결을 유지해 요청 → 차 버튼 수락 → 15단계 이동 → 34m Nearby·실내등 ON 안내 → 0m 지도 유지 → RR 열림/닫힘 → 양쪽 `boarded` 종료·홈 복귀를 확인했다. 차 홈은 "민지, MinjiP3"로 민지가 한 번만 표시됐다. 위치 서비스·공유 알림은 없어졌고, 종료 후 차를 Idle에서 재시작해 SDK 실내등 조회값 OFF로 원래 상태 복구를 확인했다. 화면·로그 근거와 검증 범위는 [DEMO_SCRIPT.md 4절](DEMO_SCRIPT.md#4-실행-검증-결과)에 있다.
-- [ ] **D2. README 제출본 보완** — 루트 `README.md`에 서버·차 실행, 가짜 탑승자, P1/P2 이력과 P3/P4 실제 폰·차 연동·debug 검증 결과를 반영했다. S5·D3 완료 후 배포 주소·release APK 위치를 채워 제출본을 완성한다.
+- [x] **D2. README 제출본 보완** — 11/08 루트 `README.md`를 심사위원용으로 다시 썼다(한 줄 소개, 화면 4장, 문제, 동작 단계, APK 설치·사용 순서, 구성, Pleos SDK, 테스트, 문서 목록). 기존 실행 방법·단계별 검증 기록은 [DEVELOPMENT.md](DEVELOPMENT.md)로 옮겼다. 화면은 release APK·Railway 서버 실행 캡처(`docs/images/`).
 - [x] **D3. 릴리스 APK** — 11/08 서명된 release APK를 `apk/마중_release.apk`(차)·`apk/마중_phone_release.apk`(폰)에 넣었다. 서버 주소는 Railway, 서명 키는 `keystore/`·`keystore.properties`(git 제외). 새 설치 차·폰 에뮬레이터에서 Railway 서버로 연결 → 요청 → 수락 → 근접·실내등 → 뒷문 탑승 → 양쪽 종료를 확인했다. 팀명(U1)이 정해지면 파일 이름 앞에 `팀명_`을 붙인다.
   - 서명: 에이전트가 `keytool`로 `keystore/maejung-release.jks`를 만들고, 비밀번호는 `keystore.properties`에 둔다. **둘 다 `.gitignore`에 넣고 커밋하지 않는다.** 백업은 사용자에게 알린다.
   - release `SERVER_URL`은 S5의 Railway URL이 필요하다(S5 뒤에 한다).
