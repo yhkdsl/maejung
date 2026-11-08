@@ -76,14 +76,14 @@ maejung/
 - 에뮬레이터에 안드로이드 기본 TTS 엔진이 없다. 말하기·듣기는 `PleosVoiceIO`에서 Pleos TTS·STT의 `Mode.ON_DEVICE`를 쓴다. Android `TextToSpeech`/`SpeechRecognizer`는 현재 구현이 아니다.
 - 위치는 `AndroidLocationSource`의 Android `LocationManager`를 사용한다. SDK 교체 작업은 현재 구현 범위에 포함하지 않는다.
 - 실내등·앰비언트 set에는 `CONTROL_CAR_LIGHTS`가 필요하다(문서에는 CAR_LIGHTS만 적혀 있는 경우가 있음). 앰비언트·내기순환은 차량 전체 영역이라 캐퍼빌리티가 준 영역으로 호출한다.
-- `CAR_DOORS`, `CAR_SEATS`는 보호 수준 normal.
+- 현재 사용하는 `CAR_DOORS`는 보호 수준 normal. 과거 스파이크에서 확인한 `CAR_SEATS`도 normal이지만, 좌석·벨트를 쓰지 않아 11/08 코드·권한 정리에서 제거했다.
 - `Safety.getTelltalesInfo`는 signature|privileged라 사용 불가.
 - Vehicle API는 모두 비동기(onComplete/onFailed). `initialize()` 후 사용하고, 콜백이 끝나기 전에 `release()`하지 않는다.
 - SDK 라이선스(42dot)가 디컴파일·역분석을 금지한다. 시그니처는 공식 API 레퍼런스(document.pleos.ai)에서 확인한다. 클래스 파일 이름 목록으로 import 경로를 찾는 것까지만 한다. 문서 본문은 Dokka shadowRoot 안에 있어서, 브라우저로 페이지를 연 뒤 `shadowRoot.textContent`를 읽어야 한다.
 
 ## 현재 상태
 
-- `app/src/main/java/com/maejung/spike/VehicleSpikeActivity.kt`: SDK 스파이크. 조회·구독·제어, 외부 통신(HTTPS, WebSocket), 탑승 신호(기어, 문, 착석, 벨트), 실내등 확인 완료(docs/DESIGN.md 7절). 각성·바다 연출과 창문 제어 버튼은 이전 컨셉 검증 기록이다.
+- **11/08 스파이크 정리**: `spike/VehicleSpikeActivity.kt`·`spike/PickupAlert.kt`·`spike/PickupAlertReceiver.kt`와 Manifest의 스파이크 컴포넌트·전용 권한 5개를 제거했다. 현재 진입점은 `MainActivity`, `MaejungApp`이 소유하는 `CarSessionManager`가 `PleosVehicleSignals`(기어·문·실내등)·`alert/PickupNotifications`를 사용하고 `alert/PickupAlertReceiver`가 수락·거절을 전달한다. 11/03~11/07 SDK 검증 결과는 DESIGN.md 7절에 과거 이력으로 보존한다. 정리 후 차 앱 53개 테스트·debug 조립 성공과 APK 반영 확인, 이어 기존 lint 오류 2개(API 29 `startForeground`, COARSE 위치 권한 누락)를 고쳐 lint 오류 0·경고 12개다. 근거는 CAR_APP.md 5절이다. 아래 P1/P2 및 11/07 결과는 이전 이력이다.
 - **기준: 2026-11-07, 코드 `74821e3`**. 서버 S1~S3, 공용 모듈 M1, 차 앱 A1~A9 구현이 있다. 로컬 서버·가짜 탑승자와의 흐름, 재연결, 지도 화면은 11/07 에뮬레이터 검증 기록이 있다. 실제 Android 폰 앱과의 통합은 아직 하지 않았다.
 - **P1/P2 완료(11/07)**: `:phone` 빌드 설정·Manifest와 연결·홈·마중 중·요청 대기·종료 6가지 디버그 오프라인 UI를 구현했다. 실제 UI 구조는 `PhoneApp`·세 화면·`PhoneComponents`·`PhoneViewModel`·`PhoneState`다. `BuildConfig.DEBUG`로 미리보기를 제한하며 release는 P3 전까지 연결·요청 불가 안내를 표시한다. release 차단은 소스·단위 테스트 근거이며 release APK·런타임은 미검증이다.
 - 11/07 점검에서 테스트를 강제 재실행해 차 앱 46개(상태 머신 38 + 조사·음성 답 3 + ETA 5), 공용 모듈 9개, 서버 34개, **총 89개 통과**를 확인했다. debug 빌드 명령도 성공했다.
@@ -100,7 +100,7 @@ maejung/
 - 실행: `~/Library/Android/sdk/emulator/emulator -avd Pleos_Connect_v2_1 -no-snapshot-load` (백그라운드로)
 - 설치: `adb install -r app/build/outputs/apk/debug/app-debug.apk` (`-q` 옵션은 에뮬레이터가 거부한다)
 - Virtual Console: `adb forward tcp:8088 tcp:8088` → `http://127.0.0.1:8088/`. 브라우저 폭이 좁으면 BODY 패널(문)이 잘리니 1600px 이상으로 본다. 실내등 상태는 콘솔에 표시되지 않는다.
-- 화면 조작·로그 확인: `scripts/tap.sh "버튼 텍스트 정규식" [대기초]`, `scripts/log.sh`. `uiautomator dump`로 버튼 좌표와 로그 TextView를 읽는다. 버튼 텍스트에 괄호·점이 있으면 정규식으로 이스케이프한다. 화면이 바쁘면 dump가 실패("could not get idle state")하니, 로그는 `adb logcat -s MaejungSpike`로 본다. 다른 앱(내비 등)이 앞에 나와 있으면 탭이 그 앱으로 가니 `am start`로 먼저 앞으로 가져온다.
+- 화면 조작: `scripts/tap.sh "버튼 텍스트 정규식" [대기초]`는 `uiautomator dump`로 버튼 좌표를 찾는다. 버튼 텍스트에 괄호·점이 있으면 정규식으로 이스케이프한다. 다른 앱(내비 등)이 앞에 나와 있으면 탭이 그 앱으로 가니 `adb shell am start -n com.maejung/.MainActivity`로 먼저 앞으로 가져온다. 현재 로그는 아래 `CarSession`·`WebSocketTransport` logcat 안내를 따른다. `scripts/log.sh`는 제거된 스파이크의 로그 TextView 전용 과거 도구다.
 - 런타임 퍼미션은 `adb shell pm grant --user 10 com.maejung <퍼미션>`(차 에뮬레이터 앱은 사용자 10).
 - 위치 주입: `adb emu geo fix <경도> <위도>`. 앱의 LocationManager에는 들어가지만, 내장 내비 앱은 이 값을 쓰지 않고 자체 기본 위치를 쓴다.
 - 호스트 PC의 로컬 서버는 에뮬레이터에서 `10.0.2.2:8080`.

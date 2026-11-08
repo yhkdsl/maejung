@@ -1,6 +1,6 @@
 # 마중 차 앱 설계 (Pleos / Android Automotive)
 
-차 앱은 저장소의 `app/` 모듈이다. **구현 기준: 2026-11-07, HEAD `74821e339a95ab99f4a233813f8919452a66d27a`.** 이 문서는 현재 소스 구현을 설명하며, 문서와 코드가 다르면 코드를 기준으로 갱신한다. 탑승 판정·실내등 규칙의 개요는 [DESIGN.md](DESIGN.md) 2~4절, 메시지 설명은 [PROTOCOL.md](PROTOCOL.md)에 있다. 상태 전이는 `session/CarSessionMachine.kt`, 실행은 `CarSessionManager.kt`, SDK 연결은 각 구현체가 기준이며, **3절은 그 구현을 정리한 표다.**
+차 앱은 저장소의 `app/` 모듈이다. **차 앱 스파이크·권한 정리 기준: 2026-11-08, `e45a21a` 이후 작업 트리.** 이 문서는 현재 소스 구현을 설명하며, 문서와 코드가 다르면 코드를 기준으로 갱신한다. 이번 정리의 근거·검증 상태는 5절, 이전 검증 이력은 6절에 구분한다. 탑승 판정·실내등 규칙의 개요는 [DESIGN.md](DESIGN.md) 2~4절, 메시지 설명은 [PROTOCOL.md](PROTOCOL.md)에 있다. 상태 전이는 `session/CarSessionMachine.kt`, 실행은 `CarSessionManager.kt`, SDK 연결은 각 구현체가 기준이며, **3절은 그 구현을 정리한 표다.**
 
 ## 1. 모듈과 빌드
 
@@ -88,7 +88,7 @@ app/src/main/java/com/maejung/
 - 연결과 세션은 **Application 범위의 `CarSessionManager`가 소유**한다. 화면 회전·Activity 재생성에 끊기지 않게 하기 위해서다. ViewModel은 구독과 사용자 입력 전달만 한다.
 - `MaejungApp`은 `PleosVehicleSignals`·`AndroidLocationSource`·`PleosVoiceIO`·`PickupNavigator`를 주입한다. fake 모드도 서버 transport만 바꾸므로 차량·위치·음성·내비는 실제 구현을 쓴다. `FakeVehicleSignals.kt`와 `FixedLocationSource.kt`는 없다.
 - 4401이면 transport 자체는 재연결하지 않지만 Manager가 토큰·가족 목록을 지우고 차를 다시 등록해 연결한다. 4409이면 `REPLACED` 상태로 남는다.
-- `spike/VehicleSpikeActivity.kt`는 검증 기록으로 남긴다. 런처는 `MainActivity`로 옮겼다. 스파이크는 런처에서 빼되 adb로 열 수 있게 `exported=true`로 둔다(`adb shell am start -n com.maejung/.spike.VehicleSpikeActivity`). `exported=false`면 셸에서도 열 수 없다.
+- 11/08 사용하지 않는 `spike/VehicleSpikeActivity.kt`·`spike/PickupAlert.kt`·`spike/PickupAlertReceiver.kt`와 Manifest의 스파이크 Activity·Receiver 선언을 제거했다. 현재 진입점은 `MainActivity`, 알림 버튼 수신은 `alert/PickupAlertReceiver`다. 11/03~11/07 SDK 검증 결과는 [DESIGN.md 7절](DESIGN.md#7-에뮬레이터-스파이크-결과-pleos-connect-emulator-v210)에 과거 이력으로 보존한다.
 - `pairing.completed`는 머신을 거치지 않는다. Manager가 Prefs의 가족 목록에 추가하고 HomeScreen에 "{이름} 연결됨"을 3초 보여준다.
 - 다시 연결하면 서버가 새 riderId를 주므로, 가족 목록은 같은 riderId **또는 같은 이름**의 예전 항목을 지우고 새 항목을 붙인다(`withMember`). 이전에 쌓인 중복도 읽을 때 마지막 연결만 남긴다(`distinctByName`, `FamilyTest` 4개). 이름이 같은 가족 두 명은 구분하지 않는다. 이전 riderToken은 서버가 폐기하지 못해 계속 유효하다(PROTOCOL.md 1절).
 
@@ -185,15 +185,32 @@ app/src/main/java/com/maejung/
 
 ## 5. 퍼미션
 
-- 매니페스트에 선언된 차량 권한: `pleos.car.permission.` 접두사의 CAR_DRIVE, CAR_CLIMATE, CAR_LIGHTS, CAR_WINDOWS, CAR_DOORS, CAR_SEATS, CONTROL_CAR_CLIMATE, CONTROL_CAR_WINDOWS, CONTROL_CAR_LIGHTS. 통신용 `android.permission.INTERNET`도 있다.
+11/08 제출 전 정리에서 사용하지 않는 스파이크 코드 3개와 전용 권한 5개를 제거했다. 현재 [Manifest](../app/src/main/AndroidManifest.xml)의 차량 권한은 아래 4개다. 모두 `pleos.car.permission.` 접두사를 쓴다.
+
+| 권한 | 현재 사용처 |
+|---|---|
+| `CAR_DRIVE` | `PleosVehicleSignals`의 기어 구독 |
+| `CAR_DOORS` | 승객 문 3개 열림·닫힘 구독 |
+| `CAR_LIGHTS` | 실내등 지원 여부·설정값 조회 |
+| `CONTROL_CAR_LIGHTS` | 근접 시 실내등 ON·이탈/종료 시 원래 값 복구 |
+
+- 통신용 `android.permission.INTERNET`도 있다.
 - `ACCESS_FINE_LOCATION`, `RECORD_AUDIO`, `POST_NOTIFICATIONS`도 이미 선언돼 있고 `MainActivity`가 미허용 권한을 런타임 요청한다. 요청 결과 콜백에서 위치 구독과 서비스 시작을 다시 시도한다. 에뮬레이터 수동 부여 예: `adb shell pm grant --user 10 com.maejung android.permission.ACCESS_FINE_LOCATION`(**`--user 10` 필수**, 11/07 기록).
 - Pleos SDK 권한: `pleos.car.permission.TTS_SERVICE`(출력), `STT_SERVICE`(인식), `NAVI_ROUTE`(조회), `NAVI_ROUTE_SEARCH`(길안내 시작·취소).
 - 서비스 권한: `android.permission.FOREGROUND_SERVICE`·`FOREGROUND_SERVICE_LOCATION`·`FOREGROUND_SERVICE_MICROPHONE`. 서비스 선언은 `foregroundServiceType="location|microphone"`이다. 위치 권한 없이는 시작하지 않고, 마이크 권한이 없으면 실행 시 location 타입만 사용한다.
-- 창문·공조·좌석 관련 권한과 exported spike Activity는 아직 남아 있다. 기본 런타임의 차량 신호는 기어·문·실내등만 사용하며, 공조·창문 제어와 착석·벨트 관측은 spike 기록과 구분한다.
+- 제거한 권한: `CAR_CLIMATE`, `CAR_WINDOWS`, `CAR_SEATS`, `CONTROL_CAR_CLIMATE`, `CONTROL_CAR_WINDOWS`(모두 `pleos.car.permission.` 접두사). 좌석·벨트 조회·구독과 공조·창문·앰비언트 제어는 과거 스파이크 검증 이력이며 현재 앱에는 해당 호출이 없다. `CAR_LIGHTS`·`CONTROL_CAR_LIGHTS`는 현재 실내등 기능에 필요하다.
+- 소스 근거: [MainActivity](../app/src/main/java/com/maejung/MainActivity.kt)가 화면·권한 요청·서비스 시작을 담당하고, [MaejungApp](../app/src/main/java/com/maejung/MaejungApp.kt)이 `CarSessionManager`에 [PleosVehicleSignals](../app/src/main/java/com/maejung/vehicle/PleosVehicleSignals.kt)·[PickupNotifications](../app/src/main/java/com/maejung/alert/PickupNotifications.kt)를 주입한다. 차량 구현은 `getGear`·`getDoor`·`getLight`만 사용한다. 알림 액션은 [alert/PickupAlertReceiver](../app/src/main/java/com/maejung/alert/PickupAlertReceiver.kt)가 같은 Manager의 `accept()`·`reject()`로 전달한다. 차 앱 단위 테스트 5개 파일은 모두 현재 기능을 대상으로 하므로 스파이크 제거로 삭제할 테스트는 없다.
+- 정리 후 검증(메인 제공): JBR 21의 `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --rerun-tasks --offline` 실행은 26초·55개 태스크 실행 후 lint 때문에 종료 코드 1이었다. 단위 테스트 53개(ETA 5·상태 머신 38·한국어 3·가족 4·혜택 3)는 실패·오류·건너뜀 0이고 debug 조립도 성공했다. 이어 lint를 제외한 `:app:testDebugUnitTest :app:assembleDebug --offline` 명령은 종료 코드 0·BUILD SUCCESSFUL(5초·45개 UP-TO-DATE)이었다. 53개 테스트는 첫 명령의 새 XML 결과이며 두 번째 실행에서 재실행한 것이 아니다.
+- 소스·병합·APK Manifest에서 제거한 권한 5개가 없고 나머지 소스 권한 15개가 유지됨을 확인했다. APK Manifest에 스파이크 컴포넌트가 없고 14개 DEX에도 `com.maejung.spike` 클래스가 없으며, 현재 `alert/PickupAlertReceiver`·`CarSessionService`는 Manifest·DEX에 남아 있다. 로컬 근거는 `.omc/qa/spike-cleanup-20261108/artifacts.json`이며 Git에서 제외되는 검증 산출물이다.
+- 정리 직후 lint는 오류 2개(`NewApi`: 3인자 `startForeground`가 API 29 필요, `CoarseFineLocation`: FINE만 있고 COARSE 없음)·경고 12개로 실패했다. 같은 날 수정했다.
+  - `CarSessionService`는 `ServiceCompat.startForeground`로 바꿨다.
+  - Manifest와 `MainActivity` 권한 요청에 `ACCESS_COARSE_LOCATION`을 추가했다. targetSdk 34에서 FINE만 요청하면 Android 12 이상이 요청을 무시해 새로 설치한 차에서 위치를 못 받을 수 있었다.
+  - 수정 후 JBR 21 offline `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug` 성공: 테스트 53개 실패 0, lint **오류 0**·경고 12개.
+- 정리 후 에뮬레이터·release APK 런타임을 새로 검증한 결과는 없다. 아래 6절과 다른 문서의 이전 테스트 수치는 이번 정리 결과와 구분한다.
 
 ## 6. 에뮬레이터 검증
 
-- 이 절의 에뮬레이터 결과는 다른 에이전트가 남긴 2026-11-07 기록이다. 이번 문서 갱신에서는 테스트·빌드·에뮬레이터를 새로 실행하지 않았다.
+- 이 절의 에뮬레이터 결과는 다른 에이전트가 남긴 2026-11-07 과거 검증 기록이다. 11/08 새로 실행한 자동 테스트·debug 조립·APK 검사·lint 결과는 5절에 기록했으며, 에뮬레이터 런타임은 재검증하지 않았다.
 - 앞선 세션에서 JBR 21, offline, `--rerun-tasks`로 app 46개(상태 머신 38·한국어 3·ETA 5), protocol 별도 9개, server 34개, 합계 89개 테스트가 실패 0개였고 debug assemble도 성공했다. 단위 테스트 결과와 차량 SDK·실제 발화 검증은 구분한다.
 - P2 메인의 새 회귀 실행: JBR 21, `:protocol:test :app:testDebugUnitTest :app:assembleDebug --rerun-tasks --offline --no-daemon --console=plain` → BUILD SUCCESSFUL(12초·47개 태스크 실행), app 46 + protocol 9 = 55개, 실패·오류·건너뜀 0. server는 소스 변경 없이 미재실행(34개는 이전 결과). 폰은 별도로 16개 테스트·debug 조립·AVD 설치·화면/복원 검증을 완료했다(PHONE_APP.md 6절). 폰 P2는 실제 차에 요청·알림을 보내지 않는다.
 - 실행·설치·Virtual Console 사용법은 루트 `CLAUDE.md`.

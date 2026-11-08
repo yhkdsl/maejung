@@ -4,6 +4,8 @@
 
 **구현 기준: 2026-11-07, P3 완료 커밋 `f5c7502` 기반 P4 debug 범위 완료.** main 최종 QA signoff와 전체 243개 GREEN·최종 증분 실행·최신 APK 안내/마커·양쪽 공유·알림 종료·app_closed 서버 종료 근거를 반영했다. 독립 검토 결과는 최종 QA 근거와 함께 관리한다. 현재 구조와 기존 검증 이력을 구분하고 통신 계약은 [PROTOCOL.md](PROTOCOL.md)를 따른다. 기본 차 앱(`MainActivity` → `CarSessionManager`)과 과거 `spike/VehicleSpikeActivity` 기록도 구분한다. P2 UI와 P3 실제 통신·상태 복원·연결 예외·미리보기 격리의 통과는 이전 이력이다(8절). P4 근거는 PHONE_APP.md 8절에 기록한다. 실물 기기·release APK 런타임·API 26 설치/런타임과 외부 SDK·마켓·타일 이용 규정은 이번 검증에 포함하지 않는다.
 
+- **11/08 차 앱 스파이크 정리(`e45a21a` 이후 작업 트리)**: 사용하지 않는 `spike/` 코드 3개와 공조·창문·좌석 권한 5개를 제거했다. 현재 알림은 `alert/PickupNotifications`·`alert/PickupAlertReceiver`를 사용한다. 소스 근거·권한 목록·차 앱 53개 테스트 및 debug 조립 성공·APK 확인·lint 실패(오류 2개·경고 12개)의 상세는 [CAR_APP.md 5절](CAR_APP.md#5-퍼미션)을 따른다. 위 P4 검증과 아래 SDK 스파이크 결과는 이전 이력이다.
+
 ## 폰 UI 확정 시안 (2026-11-07, P2 승인·P4 실제 지도 debug 검증 완료)
 
 - **P2 사용자 디자인 승인·UI 검증은 기존 이력이며 P4 실제 지도는 debug 검증을 완료했다.** 로컬 도식·샘플 좌표는 debug `PreviewSharingMap.kt`에 유지하고, 기본 실제 화면의 `SharingMap.kt`는 osmdroid 지도를 사용한다. 아래 샘플 값은 미리보기 전용이며 기존 QA를 P4 GPS·지도나 API 26 런타임 검증으로 해석하지 않는다.
@@ -27,7 +29,7 @@
 - **양쪽 동의로 시작하고, 어느 쪽이든 끝낼 수 있다.** 탑승자가 요청하고 운전자가 승인해야 위치가 오간다.
 - **위치는 공유 중에만 서버로 보낸다.** 차·폰 전송과 서버 중계는 SHARING에서 동작하며 마지막 실제 fix를 정지 중에도 3초마다 보낸다. 폰 GPS·위치 FGS도 Sharing·위치 권한 조건에서만 실행한다. 서버는 좌표를 저장하지 않고 상대에게 중계하며, 메모리 세션에는 마지막 위치 수신 시각만 남긴다. 좌표를 디스크·서버 로그에 남기지 않는다. 차 앱의 GPS 구독은 Application 시작부터 계속되므로 폰과 수집 수명이 다르다.
 - **종료는 자동이 기본, 수동은 예비다.** 차 앱은 탑승 판정으로 끝내고, 서버는 요청 승인 대기 5분·공유 중 어느 한쪽의 위치 미수신 2분 초과·요청 생성 후 60분을 5초마다 검사해 종료한다. 수동 종료도 가능하다.
-- **기본 런타임의 차량 제어는 실내등 하나만 쓴다.** 기어 P·근접 조건에서 켜고 Nearby 이탈이나 종료 시 이전 설정값으로 복구한다. 읽는 신호는 기어·승객 문·실내등이다. 좌석·벨트 관측과 공조·창문·앰비언트 제어는 spike에만 남아 있다. 대기 모드와 약속 색 앰비언트는 기본 앱에서 제외했다(2026-11-06).
+- **기본 런타임의 차량 제어는 실내등 하나만 쓴다.** 기어 P·근접 조건에서 켜고 Nearby 이탈이나 종료 시 이전 설정값으로 복구한다. 읽는 신호는 기어·승객 문·실내등이다. 좌석·벨트 관측과 공조·창문·앰비언트 제어는 과거 스파이크에서만 검증했으며 해당 코드는 11/08 제거했다. 대기 모드와 약속 색 앰비언트는 기본 앱에서 제외했다(2026-11-06).
 - 주행 중에는 조작을 최소화한다. 승인은 음성 또는 큰 버튼 하나.
 
 ## 1. 구성
@@ -72,7 +74,7 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 3. 마지막 탑승자 위치와 차 위치가 30m 이내 (GPS 오차를 고려한 초기값)
 
 - Nearby 전에 열린 문이나 다른 문의 닫힘은 판정에 쓰지 않는다. Nearby를 나가면 열린 문 기록을 비운다.
-- 기본 `PleosVehicleSignals`는 착석·벨트를 구독하지 않는다. 이 신호의 조회·로그는 spike에서만 수행했으며 당시 기본값은 승객석 착석 true였다(7절).
+- 기본 `PleosVehicleSignals`는 착석·벨트를 구독하지 않는다. 이 신호의 조회·로그는 과거 스파이크에서만 수행했으며 당시 기본값은 승객석 착석 true였다(7절). 해당 스파이크 코드는 11/08 제거했다.
 - 판정 직후 확인 질문 없이 `session.boarded`를 보내고 바로 끝낸다. 폰의 실제 종료 수신·재요청 처리는 P3 범위이며 최종 실행 근거를 별도로 기록한다. P2 종료 표시는 미리보기다.
 
 ## 4. 차량 제어: 실내등 차 찾기 (2026-11-06 확정)
@@ -108,7 +110,9 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | NaviHelper (`ai.pleos.playground:NaviHelper:3.0.5`) | `NaviHelper(context)` → `initialize(onConnected, onFailed)` → `addListener(NaviHelperEventListener)`. `requestRoute(RouteInfo(latitude, longitude, poiName, poiId, address, poiSubId))`, `cancelRoute()`. 콜백 `onRouteStarted(RouteStartInfo)`, `onDrivingInfo(DrivingInfo)`(`destination.distance` m, `destination.duration` 초), `onRouteCancelled()`, `onError(NaviErrorCode)`. 리스너는 필요한 것만 override | `NAVI_ROUTE`(조회), `NAVI_ROUTE_SEARCH`(requestRoute·cancelRoute) | ETA |
 | Light (`getLight`) | `checkCabinLightSwitchCapabilities(onComplete: (List<LightSwitch>))`, `getCabinLightSwitch(onComplete: (LightSwitch?))`, `setCabinLightSwitch(LightSwitch, onComplete: (LightSwitch?), onFailed)` | CAR_LIGHTS / CONTROL_CAR_LIGHTS | 실내등 차 찾기 |
 
-### spike에서만 사용한 API
+### 과거 스파이크에서만 사용한 API (코드 11/08 제거)
+
+아래는 11/03~11/07 SDK 검증 이력이며 현재 앱의 API·권한 목록이 아니다. 현재 권한은 CAR_APP.md 5절을 따른다.
 
 | 도메인 | API | 퍼미션 | 현재 구분 |
 |---|---|---|---|
@@ -117,6 +121,8 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 | HVAC (`getHVAC`) | `getHvacTemperature`, `setHvacTemperature`, `setHvacFanSpeed`, `setHvacRecirculation` | CAR_CLIMATE / CONTROL_CAR_CLIMATE | 공조 제어 검증 기록 |
 
 ### 주요 타입 (import 경로)
+
+아래에는 과거 스파이크에서 확인한 좌석·창문·공조 타입도 포함된다. 현재 `PleosVehicleSignals`의 import 목록과 구분한다.
 
 | 타입 | 패키지 | 값 |
 |---|---|---|
@@ -156,7 +162,7 @@ Nearby 상태에서 아래가 모두 맞으면 Ended(boarded).
 
 ## 7. 에뮬레이터 스파이크 결과 (Pleos Connect Emulator v2.1.0)
 
-아래는 과거 검증 이력이며 11/07 항목은 다른 에이전트가 남긴 기록이다. 이번 문서 갱신에서는 에뮬레이터를 실행하지 않았다. 공조·앰비언트·착석·벨트 성공 기록이 기본 앱의 사용을 뜻하지는 않는다.
+아래는 11/03~11/07 과거 검증 이력이며 11/07 항목은 다른 에이전트가 남긴 기록이다. 검증에 사용한 스파이크 화면·알림 코드는 11/08 제거했으며 결과 기록은 보존한다. 이번 문서 갱신에서는 에뮬레이터를 실행하지 않았다. 공조·앰비언트·착석·벨트 성공 기록이 현재 앱의 사용을 뜻하지는 않는다.
 
 | 날짜 | 항목 | 결과 |
 |---|---|---|

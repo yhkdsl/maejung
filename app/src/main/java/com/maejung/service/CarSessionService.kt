@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.util.Log
+import androidx.core.app.ServiceCompat
 import com.maejung.alert.PickupNotifications
 
 /**
@@ -20,7 +21,9 @@ class CarSessionService : Service() {
         val notification = PickupNotifications(this).ongoing()
         runCatching {
             // 마이크: 앱이 뒤에 있을 때 음성 승인을 들으려면 microphone 타입이 필요하다(없으면 인식 오류 9, 권한 부족)
-            startForeground(
+            // 타입 인자는 API 29부터라 minSdk 28에서도 안전한 ServiceCompat을 쓴다
+            ServiceCompat.startForeground(
+                this,
                 PickupNotifications.ID_ONGOING,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or microphoneType(),

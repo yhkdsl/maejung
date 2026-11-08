@@ -7,15 +7,14 @@
 
     <!-- 조회 -->
     <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
-    <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
-    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
     <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
-    <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
     <!-- 마중: 위치 중계 서버 통신 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 마중: 차 위치, 음성 승인 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Android 12 이상은 FINE만 요청하면 거부되므로 COARSE도 함께 둔다 -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 마중: 다른 앱 위에 뜨는 픽업 요청 알림 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -30,9 +29,6 @@
     <!-- 마중: 탑승자 위치까지 경로·도착 예정 시간 -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
-    <!-- 제어. 공조·창문은 스파이크 검증 기록에서만 쓴다. 릴리스(D3) 전에 정리한다 -->
-    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
-    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_WINDOWS" />
     <!-- 실내등 차 찾기. 문서에는 set에 CAR_LIGHTS만 적혀 있지만 실제로는 제어 퍼미션이 필요하다 -->
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
 
@@ -53,20 +49,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- SDK 검증 기록. 런처에는 없고 adb로만 연다:
-             adb shell am start -n com.maejung/.spike.VehicleSpikeActivity -->
-        <activity
-            android:name=".spike.VehicleSpikeActivity"
-            android:exported="true">
-            <meta-data
-                android:name="distractionOptimized"
-                android:value="true" />
-        </activity>
-
-        <receiver
-            android:name=".spike.PickupAlertReceiver"
-            android:exported="false" />
 
         <receiver
             android:name=".alert.PickupAlertReceiver"

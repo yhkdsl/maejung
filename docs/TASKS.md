@@ -4,6 +4,7 @@
 
 **현황 기준: 2026-11-08, HEAD `d5bdcc5`**. P4는 `3c0b427`, 차의 좌표 겹침 지도 수정은 `d5bdcc5`에 커밋됐다. **D1 실제 차·폰 데모 재현, S4 Docker 이미지 빌드·컨테이너 health 확인, D4 촬영 대본을 완료했다.** 영상 녹화·편집은 사용자 작업으로 남아 있다. P4의 243개 테스트와 debug QA는 기존 완료 이력이며 PHONE_APP.md 8절에 보존한다. 이번 제출 준비에서는 앱 소스를 변경하지 않았고 차·폰 debug 조립과 실제 시연을 확인했다. A6 실제 발화와 S5 Railway 배포는 미완료다.
 
+- **11/08 스파이크 정리(`e45a21a` 이후 작업 트리)**: 사용하지 않는 화면·알림 코드 3개와 공조·창문·좌석 권한 5개를 제거했다. 차 앱 53개 테스트·debug 조립 및 APK Manifest·DEX 반영 확인 완료. 이어서 lint 오류 2개(API 29 `startForeground`, COARSE 위치 권한 누락)를 고쳐 lint 오류 0·경고 12개가 됐다. 상세는 [CAR_APP.md 5절](CAR_APP.md#5-퍼미션)을 따른다. 위 제출 준비 검증과 P4 결과는 이전 이력이다.
 - 1차 제출 마감: **2026-11-15(일)**, 목표 11/14. 2차 PT: 12/3~4.
 - 기존 P2 검증 이력(UI 재설계 전): phone 테스트 16개·debug 조립 성공(7초), 메인 JBR 21의 `:protocol:test :app:testDebugUnitTest :app:assembleDebug --rerun-tasks --offline --no-daemon --console=plain` 성공(12초·47개 태스크 실행), app 46 + protocol 9 = **55개 통과**, 실패·오류·건너뜀 0. 서버는 소스 변경 없이 미재실행(기존 34개). 폰 lint 온라인 성공(28초·오류 0·경고 8), 폰 AVD 설치·화면·입력·회전·프로세스 재생성 검증은 PHONE_APP.md 6절에 정리했다.
 - UI 재설계 최종 검증(메인 제공): `:phone:testDebugUnitTest :phone:assembleDebug :phone:lintDebug` 오프라인 통합 실행 **성공(19초·55개 태스크: 실행 14·최신 상태 41)**. phone **24개 모두 재실행·통과**(기존 16 + 새 `SharingCompassTest` 8, XML `2026-11-07T12:31:06Z`·실패/오류/건너뜀 0), lint 오류 0·기존 경고 8개, 최종 debug APK 설치 Success. API 27 테마 분리(기본 리소스·`values-v27`)와 불필요한 null 검사 제거를 반영했다. 독립 소스·시각 검토와 네이티브 QA는 PASS이며 PNG 근거는 PHONE_APP.md 6절이다. API 26 설치·런타임은 미검증이다.
@@ -67,7 +68,7 @@
 
 ## 3. 차 앱 (`app/`)
 
-- [x] **A1. 골격** — compileSdk 35, Compose 도입, `MaejungApp`·`MainActivity`(런처, distractionOptimized), 스파이크는 런처에서 빼고 adb로만 열기, CAR_APP.md 2절 인터페이스(`VehicleSignals`, `SessionTransport`, `LocationSource`, `VoiceIO`), debug 서버 주소와 평문 허용(10.0.2.2), release 서버 주소 없으면 빌드 실패. 11/07 완료. 공조·창문 제어 퍼미션 정리는 스파이크가 쓰고 있어 D3(릴리스) 때 한다.
+- [x] **A1. 골격** — compileSdk 35, Compose 도입, `MaejungApp`·`MainActivity`(런처, distractionOptimized), CAR_APP.md 2절 인터페이스(`VehicleSignals`, `SessionTransport`, `LocationSource`, `VoiceIO`), debug 서버 주소와 평문 허용(10.0.2.2), release 서버 주소 없으면 빌드 실패. 11/07 완료. 당시 런처에서 분리했던 스파이크 화면·알림 코드와 전용 공조·창문·좌석 권한은 11/08 제거했다. D3에 미룬 권한 정리 항목은 완료됐으며 정리 후 검증은 CAR_APP.md 5절에 기록한다.
   - 완료 기준: `./gradlew :app:assembleDebug` 성공, 에뮬레이터에서 HomeScreen이 뜸.
 - [x] **A2. 상태 머신** — `CarSessionMachine`(CAR_APP.md 3.4 표 전부). 11/07 완료(테스트 38개 + 조사·음성 답 3개).
   - 완료 기준: 표의 모든 행 + 아래 경우의 단위 테스트 통과(`./gradlew :app:testDebugUnitTest`): 길안내 500m 경계(이상이면 한 번만 시작, 미만이면 안 함, 종료 시 취소), 50m 진입·70m 이탈 경계, Nearby 전에 열린 문 무시, 실내등 원래 ON·AUTOMATIC(복구 후 원래 값), `supportsOn=false`(실내등 효과·`vehicle.light` 없음), 종료 전이에서는 `vehicle.light`를 보내지 않음(Nearby→Sharing에서만 보냄), `lightBefore`가 이미 있으면 덮어쓰지 않음, `session.state none`으로 정리.
@@ -80,7 +81,7 @@
   - 완료 기준: 로컬 서버에 붙어 코드 발급. 서버를 껐다 켜면 재연결 후 `session.state none`을 받아 진행 중 세션이 Ended(peer_lost)로 정리되고 실내등이 복구됨.
 - [ ] **A6. 음성 — 구현 완료, 실제 발화 검증 대기** — `PleosVoiceIO`(말하기·듣기 모두 Pleos Speech SDK ON_DEVICE). 11/07 TTS 안내 재생과 Pleos STT의 "말할 준비 됨"까지 확인했다. 승인·거절 문장 파싱도 구현됐지만 **사람 발화로 승인·거절되는지 확인해야 한다(사용자 협조 필요).**
   - 완료 기준: 요청 시 TTS 안내 후 실제 "응"으로 승인, "아니"로 거절됨을 확인한다. 인식 실패·시간 초과 때 버튼으로 답할 수 있어야 한다.
-- [x] **A8. 알림·길안내·백그라운드** — `PickupNotifications`(스파이크 `spike/PickupAlert.kt` 참고), `PickupAlertReceiver`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙). 11/07 완료(음성 승인 제외): 내비가 앞에 있는 상태에서 헤드업 요청 알림 → 수락(헤드업·알림 센터 둘 다) → 내비를 띄운 채로 위치 공유·34m 근접 안내·실내등·탑승 감지까지 동작. 차를 1,099m 떨어뜨리면 수락 직후 길안내 시작, 차에서 "공유 끝내기"하면 길안내 취소. **음성 승인은 미확인**: A6에서 Pleos STT로 바꿔 인식 준비까지는 확인, 실제 발화 확인이 남았다.
+- [x] **A8. 알림·길안내·백그라운드** — `alert/PickupNotifications.kt`·`alert/PickupAlertReceiver.kt`, `PickupNavigator`, `CarSessionService`(CAR_APP.md 2절 규칙). 11/07 완료(음성 승인 제외): 내비가 앞에 있는 상태에서 헤드업 요청 알림 → 수락(헤드업·알림 센터 둘 다) → 내비를 띄운 채로 위치 공유·34m 근접 안내·실내등·탑승 감지까지 동작. 차를 1,099m 떨어뜨리면 수락 직후 길안내 시작, 차에서 "공유 끝내기"하면 길안내 취소. **음성 승인은 미확인**: A6에서 Pleos STT로 바꿔 인식 준비까지는 확인, 실제 발화 확인이 남았다.
   - 완료 기준: 내비 화면이 앞에 있을 때 요청이 오면 헤드업 알림이 뜨고 수락·거절이 동작. 차와 탑승자가 500m 이상이면 수락 후 길안내가 시작되고, 탑승 감지·수동 종료 시 길안내가 취소됨. 마중 앱이 화면 뒤에 있어도 위치 전송과 탑승 감지가 계속됨.
   - 음성 승인 테스트는 실제 발화가 필요하다. 에뮬레이터에서 PC 마이크를 켜고 사용자에게 "응"이라고 말해 달라고 요청한다.
 - [x] **A7. 위치·ETA** — `AndroidLocationSource`(LocationManager), 3초 간격 마지막 위치 heartbeat, `EtaCalculator`(내비 값 우선·없으면 추정), `eta.update` 전송 규칙. 11/07 완료: 접근할수록 가짜 탑승자 클라이언트에 `peer.eta` 60→40→28→16초, 정차 3분 넘게 유지해도 끊기지 않고 30초마다 ETA 재전송. `EtaCalculatorTest` 5개. 방향은 8방위 글자로 표시한다. 현재 화면은 A9 기준이다.
