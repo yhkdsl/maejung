@@ -26,9 +26,11 @@
 
 ## 기획 문서 (Obsidian, 사업성·시나리오 원본)
 
-- 기획서 초안: `~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 마중 기획서 초안.md`
-- 개발 계획: `~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 마중 개발 계획.md`
-- 요강 분석과 아이디어 선정 근거(심사 기준, 시상, 제출 규정, README·APK 규칙, 컨셉 변경 이유): `~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/HMG 차량용 앱 공모전 - 요강 분석과 아이디어 선정.md`
+공개 저장소라 개인 경로·실명을 적지 않는다. 아래 문서는 작성자 홈 폴더의 Obsidian 볼트(`~/Documents/Obsidian Vault/01. Projects/HMG 차량용 앱 공모전/`)에 있다.
+
+- 기획서 초안: `HMG 차량용 앱 공모전 - 마중 기획서 초안.md`
+- 개발 계획: `HMG 차량용 앱 공모전 - 마중 개발 계획.md`
+- 요강 분석과 아이디어 선정 근거(심사 기준, 시상, 제출 규정, README·APK 규칙, 컨셉 변경 이유): `HMG 차량용 앱 공모전 - 요강 분석과 아이디어 선정.md`
 - 이전 "동행" 문서(`… - 기획서 초안.md`, `… - 개발 계획.md`)는 보류(archived) 상태다.
 - 새 계획이나 기능 문서도 같은 Obsidian 폴더에 저장한다.
 

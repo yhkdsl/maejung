@@ -32,6 +32,20 @@
 - **개인정보**: 서버는 승인된 세션에서만 위치를 중계하고 좌표 이력을 저장하지 않습니다. 세션이 끝나면 서버의 세션 정보를 지웁니다.
 - **안전**: 차량 제어는 정차 중 실내등 하나뿐입니다. 기어·문은 읽기만 합니다.
 
+## 테스트 환경
+
+| 항목 | 내용 |
+|---|---|
+| 차 | Pleos Connect Emulator v2.1 (AVD `Pleos_Connect_v2_1`, Android 14 / API 34, arm64). 일반 폰 에뮬레이터에서는 차량 SDK가 동작하지 않습니다 |
+| 폰 | Android 8.0(API 26) 이상 폰 또는 에뮬레이터. 검증은 API 36 에뮬레이터에서 했습니다 |
+| 서버 | 설정 불필요. release APK에 배포 서버 주소가 들어 있습니다(`/health`로 상태 확인) |
+| 차량 신호 | 기어·문은 Pleos Virtual Console로 바꿉니다: `adb forward tcp:8088 tcp:8088` 후 브라우저에서 `http://127.0.0.1:8088/`(BODY 패널이 보이도록 1600px 이상 폭) |
+| 위치 | 에뮬레이터는 `adb -s <기기> emu geo fix <경도> <위도>`로 위치를 넣습니다 |
+| 권한 | 차 앱 첫 실행 때 위치·마이크·알림, 폰 앱은 "데리러 와줘"를 누를 때 위치·알림 권한을 허용합니다 |
+| 네트워크 | 두 기기 모두 인터넷 연결이 필요합니다(지도 타일, 서버 통신) |
+
+차 에뮬레이터 앱은 사용자 10으로 실행됩니다. adb로 직접 열 때는 `adb -s <차> shell am start --user 10 -n com.maejung/.MainActivity`를 씁니다. 소스 빌드·로컬 서버 실행은 [DEVELOPMENT.md](docs/DEVELOPMENT.md)를 참고합니다.
+
 ## 직접 실행해 보기
 
 `apk/`의 release APK는 배포 서버(`https://maejung-production.up.railway.app`)에 연결돼 있어 설치만 하면 됩니다.
