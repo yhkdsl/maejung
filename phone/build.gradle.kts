@@ -12,6 +12,10 @@ val localProperties = Properties().apply {
 }
 val releaseServerUrl = (findProperty("maejung.serverUrl") as String?)
     ?: localProperties.getProperty("maejung.serverUrl")
+// release 서명 키. 차 앱과 같은 keystore.properties를 쓴다(git 제외)
+val keystoreProperties = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
 
 android {
     namespace = "com.maejung.phone"
@@ -25,12 +29,24 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (keystoreProperties.containsKey("storeFile")) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:8080\"")
         }
         release {
             buildConfigField("String", "SERVER_URL", "\"${releaseServerUrl.orEmpty()}\"")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

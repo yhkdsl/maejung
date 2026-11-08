@@ -11,6 +11,10 @@ val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 val releaseServerUrl = (findProperty("maejung.serverUrl") as String?) ?: localProperties.getProperty("maejung.serverUrl")
+// release 서명 키. keystore.properties와 keystore/는 git에 올리지 않는다(README "release APK")
+val keystoreProperties = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
 
 android {
     namespace = "com.maejung"
@@ -27,6 +31,17 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (keystoreProperties.containsKey("storeFile")) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             // 에뮬레이터에서 호스트 PC의 로컬 서버
@@ -34,6 +49,7 @@ android {
         }
         release {
             buildConfigField("String", "SERVER_URL", "\"${releaseServerUrl.orEmpty()}\"")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

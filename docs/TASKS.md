@@ -33,7 +33,7 @@
 |---|---|---|---|
 | U1 | 팀명 정하기 (APK 이름, 제출 메일 제목 `[차량용 앱 개발 공모전] 팀명_대표자명`) | D3 전 | 대기 |
 | U2 | 공식 접수양식(DOCX) 확인. 기획서를 양식 목차에 맞춰 재구성해야 한다. 사용자가 이전에 다운로드를 거절했으니 에이전트가 임의로 받지 않는다 | 기획서 최종본 전 | 대기 |
-| S5 | Railway에 서버 배포, 배포 URL 전달 (README "Railway 배포") | A5 이후 아무 때나, D3 전 필수 | 대기 |
+| S5 | Railway에 서버 배포, 배포 URL 전달 (README "Railway 배포") | A5 이후 아무 때나, D3 전 필수 | 완료(11/08, `maejung-production.up.railway.app`) |
 | P1 | 기존 폰 에뮬레이터 이미지로 차·폰 동시 실행 확인 | P2 전 | 11/07 완료, 추가 다운로드 없음 |
 | A6 | 음성 인식 테스트 때 PC 마이크에 승인·거절 발화하기("응"/"아니") | A6 완료 전 | 대기 |
 | D4 | 시연 영상 녹화·편집 | 11/13 | 대기(촬영 대본 11/08 완료) |
@@ -59,7 +59,7 @@
   - 완료 기준: SERVER.md 6절의 `SessionServiceTest`, `WebSocketFlowTest`(①~⑤) 통과.
 - [x] **S4. 배포 준비·빌드 검증** — 11/08 `docker build -t maejung-server server` 성공(`bootJar` 49초, 4개 태스크 실행). 이미지로 검증용 컨테이너 `maejung-s4-20261108-0105`를 `127.0.0.1:18080:8080`에 띄워 `/health`의 `{"status":"ok"}`를 확인한 뒤 컨테이너만 중지·제거했다. 기존 8080 서버와 에뮬레이터는 유지했다. Dockerfile·Railway 설정 안내(Root Directory `server`, `SPRING_PROFILES_ACTIVE=railway`·`MAEJUNG_TOKEN_SECRET`, `/health`)는 작성돼 있으며 실제 Railway 배포는 S5에 남아 있다.
   - 완료 기준: `docker build -t maejung-server server` 성공(Docker가 없으면 사용자에게 알리고 건너뛴다).
-- [ ] **S5. Railway 배포** — 담당: **사용자**. 서비스 생성, 환경변수 입력, 배포 URL을 알려 준다. 에이전트는 받은 URL을 `local.properties`의 `maejung.serverUrl`에 넣는 방법만 안내한다.
+- [x] **S5. Railway 배포** — 11/08 사용자가 `yhkdsl/maejung` `master`를 Root Directory `server`로 배포. `https://maejung-production.up.railway.app/health` 200·`{"status":"ok"}`, 없는 연결 코드에 404 `PAIRING_CODE_NOT_FOUND`를 확인했다.
 
 ## 2. 공용 모듈
 
@@ -126,7 +126,7 @@
   - 완료 기준: 스크립트 한 번으로 1~5단계가 재현됨.
   - 실행 결과: 기존 `MinjiP3` 폰 연결을 유지해 요청 → 차 버튼 수락 → 15단계 이동 → 34m Nearby·실내등 ON 안내 → 0m 지도 유지 → RR 열림/닫힘 → 양쪽 `boarded` 종료·홈 복귀를 확인했다. 차 홈은 "민지, MinjiP3"로 민지가 한 번만 표시됐다. 위치 서비스·공유 알림은 없어졌고, 종료 후 차를 Idle에서 재시작해 SDK 실내등 조회값 OFF로 원래 상태 복구를 확인했다. 화면·로그 근거와 검증 범위는 [DEMO_SCRIPT.md 4절](DEMO_SCRIPT.md#4-실행-검증-결과)에 있다.
 - [ ] **D2. README 제출본 보완** — 루트 `README.md`에 서버·차 실행, 가짜 탑승자, P1/P2 이력과 P3/P4 실제 폰·차 연동·debug 검증 결과를 반영했다. S5·D3 완료 후 배포 주소·release APK 위치를 채워 제출본을 완성한다.
-- [ ] **D3. 릴리스 APK** — 차 앱 `apk/팀명_마중_release.apk`. 팀명은 **사용자에게 확인**한다. 폰 앱도 같은 폴더에 `팀명_마중_phone_release.apk`.
+- [x] **D3. 릴리스 APK** — 11/08 서명된 release APK를 `apk/마중_release.apk`(차)·`apk/마중_phone_release.apk`(폰)에 넣었다. 서버 주소는 Railway, 서명 키는 `keystore/`·`keystore.properties`(git 제외). 새 설치 차·폰 에뮬레이터에서 Railway 서버로 연결 → 요청 → 수락 → 근접·실내등 → 뒷문 탑승 → 양쪽 종료를 확인했다. 팀명(U1)이 정해지면 파일 이름 앞에 `팀명_`을 붙인다.
   - 서명: 에이전트가 `keytool`로 `keystore/maejung-release.jks`를 만들고, 비밀번호는 `keystore.properties`에 둔다. **둘 다 `.gitignore`에 넣고 커밋하지 않는다.** 백업은 사용자에게 알린다.
   - release `SERVER_URL`은 S5의 Railway URL이 필요하다(S5 뒤에 한다).
   - 완료 기준: 두 APK가 에뮬레이터에 설치되어 Railway 서버로 D1 시나리오가 동작.

@@ -147,16 +147,33 @@ scripts/demo.sh --car emulator-5554 --phone emulator-5556 --car-user 10
    - `SPRING_PROFILES_ACTIVE=railway`
    - `MAEJUNG_TOKEN_SECRET`: 32자 이상 임의 문자열 (예: `openssl rand -base64 48`). 바꾸면 모든 차·폰 연결이 무효가 됩니다.
 4. 헬스체크 경로를 `/health`로 지정합니다.
-5. 배포 URL을 차·폰 앱 release 빌드의 `maejung.serverUrl`에 넣습니다(`local.properties` 또는 `-Pmaejung.serverUrl=https://...`). 주소가 없으면 release 빌드가 실패하며 폰은 HTTPS 주소를 요구합니다. 폰도 해당 주소로 실제 REST·WebSocket을 사용합니다. Railway에서의 양쪽 앱 런타임은 아직 검증하지 않았습니다.
+5. 배포 URL을 차·폰 앱 release 빌드의 `maejung.serverUrl`에 넣습니다(`local.properties` 또는 `-Pmaejung.serverUrl=https://...`). 주소가 없으면 release 빌드가 실패하며 폰은 HTTPS 주소를 요구합니다.
 
-배포 설정과 로컬 Docker 이미지 빌드·컨테이너 health 확인은 완료했습니다. Railway 실제 배포와 release 서명 설정은 남아 있습니다.
+**배포 서버(11/08)**: `https://maejung-production.up.railway.app` — `/health`가 `{"status":"ok"}`를 돌려줍니다. 저장소 `master` 브랜치에 push하면 Railway가 다시 배포합니다.
 
-## APK와 남은 작업
+## APK
 
-- 차 앱 debug APK: `app/build/outputs/apk/debug/app-debug.apk`
-- 폰 앱 debug APK: `phone/build/outputs/apk/debug/phone-debug.apk` (최신 설치 Success·main P4 QA 완료. P3 이력은 PHONE_APP.md 7절, P4 근거는 8절)
-- 폰 release 주소 가드의 P2 이력: 11/07 JBR 21의 `:phone:assembleRelease --dry-run --offline --no-daemon --console=plain`에서 주소 누락 오류·종료 코드 1을 확인했습니다. 예상한 설정 차단이며 P3 HTTPS 설정·release APK 런타임 검증을 대신하지 않습니다.
-- 제출용 release APK: 아직 없음. 예정 경로는 `apk/팀명_마중_release.apk`, 폰 앱은 `apk/팀명_마중_phone_release.apk`입니다. 팀명·배포 URL·서명 설정 확정 후 생성합니다.
-- 다음 작업: Railway 배포 S5, 실제 발화 확인 A6, README 제출본 D2·릴리스 D3·영상 녹화/편집 D4·GitHub D5. P1/P2/P3/P4, D1, S4와 D4 촬영 대본은 완료했습니다. 세부 상태와 완료 기준은 [TASKS.md](docs/TASKS.md)에 있습니다.
+`apk/` 폴더의 release APK는 위 Railway 서버에 연결됩니다. 별도 서버를 띄우지 않고 설치만 하면 됩니다.
+
+| 파일 | 설치 대상 |
+|---|---|
+| [`apk/마중_release.apk`](apk/마중_release.apk) | 차 앱. Pleos Connect 에뮬레이터(`adb install -r`) |
+| [`apk/마중_phone_release.apk`](apk/마중_phone_release.apk) | 폰 앱. Android 8.0(API 26) 이상 폰·에뮬레이터 |
+
+사용 순서:
+
+1. 차 앱을 열고 위치·마이크·알림 권한을 허용한 뒤 **가족 연결**을 눌러 6자리 코드를 받습니다.
+2. 폰 앱에 이름과 코드를 넣고 **연결하기** → **데리러 와줘**.
+3. 차 알림이나 화면에서 **수락**하면 양쪽 지도에 위치가 공유됩니다. 에뮬레이터는 `adb emu geo fix <경도> <위도>`로 위치를 옮깁니다(차 `127.06030 37.49950`, 학원 `127.06280 37.49830`).
+4. 폰이 50m 안에 들어오고 기어가 P면 차가 실내등을 켭니다. Virtual Console에서 뒷문(RR)을 열고 닫으면 탑승으로 판정해 양쪽 공유가 끝납니다.
+
+**검증(11/08)**: JBR 21로 `:app:assembleRelease :phone:assembleRelease`(서명 포함)를 만들고, 차 `emulator-5554`·폰 `emulator-5556`에 새로 설치해 Railway 서버로 권한 요청 → 연결 → 요청 → 수락 → 이동 → 근접·실내등 → 뒷문 열고 닫기 → 양쪽 자동 종료까지 확인했습니다.
+
+release 서명 키(`keystore/`, `keystore.properties`)는 git에 올리지 않습니다. 같은 키로 다시 빌드해야 기존 설치 위에 업데이트할 수 있으니 따로 백업합니다. 키가 없으면 서명 없이 빌드됩니다.
+
+## 남은 작업
+
+- 실제 발화 확인 A6, 영상 최종본 D4, 팀명 확정 U1(확정되면 APK 이름 앞에 `팀명_`을 붙인다). 세부 상태와 완료 기준은 [TASKS.md](docs/TASKS.md)에 있습니다.
+- debug APK(`app/build/outputs/apk/debug/`, `phone/build/outputs/apk/debug/`)는 로컬 서버(`10.0.2.2:8080`)용입니다.
 
 설계 원칙은 [DESIGN.md](docs/DESIGN.md), 통신 규격은 [PROTOCOL.md](docs/PROTOCOL.md), 서버는 [SERVER.md](docs/SERVER.md), 차 앱은 [CAR_APP.md](docs/CAR_APP.md)에 있습니다.
