@@ -10,9 +10,10 @@
 
 - **차 앱 구현**: 가족 연결 코드, 헤드업 요청 알림·수락·거절, Pleos TTS/STT, 위치·ETA 공유, OpenStreetMap 지도, 500m 이상일 때 길안내 시작, 근접 시 실내등 제어, 탑승 감지·공유 종료.
 - **서버 구현**: 차 등록, 코드 페어링, 서명 토큰, WebSocket 중계, 세션 만료. DB 없이 세션·연결 정보를 메모리에 두며 좌표는 수신 즉시 상대에게 중계합니다.
-- **검증 대기**: 실제 발화로 음성 승인·거절, Docker 이미지 빌드, Railway 배포.
+- **11/08 제출 준비 검증**: D1 실제 차·폰 시연과 S4 Docker 빌드·컨테이너 health 확인을 완료했습니다. D4 촬영 대본은 150초 구성이며 영상 녹화·편집은 남아 있습니다. 이 검증은 HEAD `d5bdcc5` 기준이며 앱 소스 변경 없이 진행했습니다. 위 243개 테스트는 기존 P4 실행 이력입니다.
+- **검증 대기**: 실제 발화로 음성 승인·거절, Railway 배포.
 - **폰 앱 P3·P4 완료**: 실제 REST·WebSocket·자격 보관·세션 복원 위에 Sharing 전용 `LocationManager.GPS_PROVIDER`, 위치 포그라운드 서비스, osmdroid 실제 지도를 연결했습니다. 마지막 실제 GPS fix를 정지 중에도 3초마다 전송하고, 지도 아래 HUD는 GPS 직선거리·이동 기준 방향·수신 ETA를 표시합니다. GMS 위치 의존성은 없습니다. P2 도식은 debug 미리보기로 분리했습니다. P3 근거는 [7절](docs/PHONE_APP.md#7-p3-검증-결과), P4 결과는 [8절](docs/PHONE_APP.md#8-p4-검증-결과)에 있습니다. 실물 기기·release APK 런타임·API 26 설치/런타임은 미검증입니다.
-- **제출 준비 중**: 서명된 release APK, 통합 데모 스크립트·영상, 제출용 기획서, GitHub 게시.
+- **제출 준비 중**: 서명된 release APK, 시연 영상 녹화·편집, 제출용 기획서, GitHub 게시.
 
 ## 구성
 
@@ -23,7 +24,7 @@
 | `protocol/` | 공용 REST·WebSocket 메시지 모델 (Kotlin/JVM) |
 | `server/` | 중계 서버 (독립 Gradle 프로젝트, Kotlin, Spring Boot, WebSocket) |
 | `docs/` | 설계 문서 |
-| `scripts/` | 가짜 탑승자 클라이언트, 화면 조작·로그 확인 도구 |
+| `scripts/` | 실제 차·폰 시연 스크립트, 가짜 탑승자 클라이언트, 화면 조작·로그 확인 도구 |
 
 ## 개발·테스트 환경
 
@@ -121,6 +122,22 @@ debug의 실제 연결 화면 우측 상단 메뉴에서 **미리보기 열기**
 
 P2 당시 화면 QA와 회전·키보드·프로세스 재생성 기록은 [PHONE_APP.md 6절](docs/PHONE_APP.md#6-p1p2-검증-이력과-ui-재설계-검증-상태)에 보존합니다. P3의 새 실행 근거는 같은 문서 7절에 기록합니다.
 
+### 실제 차·폰 시연 (D1)
+
+두 에뮬레이터와 실제 서버용 debug APK를 준비한 뒤 저장소 루트의 대화형 터미널에서 실행합니다. 에뮬레이터 실행 방법은 [CLAUDE.md](CLAUDE.md)의 "에뮬레이터 실행"을 참고합니다.
+
+```bash
+scripts/demo.sh --car emulator-5554 --phone emulator-5556 --car-user 10
+```
+
+기본 adb는 `~/Library/Android/sdk/platform-tools/adb`, 서버 확인 주소는 `http://127.0.0.1:8080/health`입니다. 서버가 없으면 실행 방법을 안내하고 기기를 조작하지 않습니다. serial은 위치 인자나 `CAR_SERIAL`·`PHONE_SERIAL`, 서버는 `--server-url`·`SERVER_URL`, adb는 `--adb`·`ADB`로 바꿉니다(`--help` 참고). 서버 옵션은 health 확인 주소이며 설치 APK의 서버 주소를 바꾸지는 않습니다.
+
+스크립트는 학원에서 차까지 폰 GPS를 15등분·3초 간격으로 옮깁니다. 기어 P, 실제 폰 요청·차 수락, RR 문 열고 닫기, 양쪽 화면·실내등 확인은 안내에 따라 조작하고 Enter를 누릅니다. Enter 자체는 앱 상태 자동 검증이 아닙니다. 11/08 실행에서는 양쪽 탑승 종료·실내등 OFF 복구, 가족 목록 민지 1회, 도착 0m에서 차 지도 확대 유지까지 확인했습니다. 기존 `MinjiP3` 연결을 재사용했습니다. [150초 촬영 대본·실행 근거](docs/DEMO_SCRIPT.md)를 참고합니다.
+
+### Docker 로컬 빌드 확인 (S4)
+
+11/08 `docker build -t maejung-server server`가 성공했습니다. 검증용 컨테이너를 `127.0.0.1:18080:8080`으로 실행해 `/health`의 `{"status":"ok"}`를 확인하고 해당 컨테이너만 중지·제거했습니다. 기존 8080 서버는 유지했으며 빌드한 `maejung-server` 이미지는 남아 있습니다. 이는 로컬 이미지 검증이며 Railway 배포 확인은 S5 작업입니다.
+
 ### Railway 배포
 
 1. Railway 프로젝트에 서비스를 추가하고 이 저장소를 연결합니다.
@@ -131,7 +148,7 @@ P2 당시 화면 QA와 회전·키보드·프로세스 재생성 기록은 [PHON
 4. 헬스체크 경로를 `/health`로 지정합니다.
 5. 배포 URL을 차·폰 앱 release 빌드의 `maejung.serverUrl`에 넣습니다(`local.properties` 또는 `-Pmaejung.serverUrl=https://...`). 주소가 없으면 release 빌드가 실패하며 폰은 HTTPS 주소를 요구합니다. 폰도 해당 주소로 실제 REST·WebSocket을 사용합니다. Railway에서의 양쪽 앱 런타임은 아직 검증하지 않았습니다.
 
-현재 배포 설정은 작성됐지만 Docker 이미지 빌드 성공과 Railway 배포는 아직 검증하지 않았습니다. release 서명 설정도 남아 있습니다.
+배포 설정과 로컬 Docker 이미지 빌드·컨테이너 health 확인은 완료했습니다. Railway 실제 배포와 release 서명 설정은 남아 있습니다.
 
 ## APK와 남은 작업
 
@@ -139,6 +156,6 @@ P2 당시 화면 QA와 회전·키보드·프로세스 재생성 기록은 [PHON
 - 폰 앱 debug APK: `phone/build/outputs/apk/debug/phone-debug.apk` (최신 설치 Success·main P4 QA 완료. P3 이력은 PHONE_APP.md 7절, P4 근거는 8절)
 - 폰 release 주소 가드의 P2 이력: 11/07 JBR 21의 `:phone:assembleRelease --dry-run --offline --no-daemon --console=plain`에서 주소 누락 오류·종료 코드 1을 확인했습니다. 예상한 설정 차단이며 P3 HTTPS 설정·release APK 런타임 검증을 대신하지 않습니다.
 - 제출용 release APK: 아직 없음. 예정 경로는 `apk/팀명_마중_release.apk`, 폰 앱은 `apk/팀명_마중_phone_release.apk`입니다. 팀명·배포 URL·서명 설정 확정 후 생성합니다.
-- 다음 작업: 배포 검증 S4~S5, 실제 발화 확인 A6, 통합·제출 D1~D5. P1/P2/P3/P4는 완료했습니다. 세부 상태와 완료 기준은 [TASKS.md](docs/TASKS.md)에 있습니다.
+- 다음 작업: Railway 배포 S5, 실제 발화 확인 A6, README 제출본 D2·릴리스 D3·영상 녹화/편집 D4·GitHub D5. P1/P2/P3/P4, D1, S4와 D4 촬영 대본은 완료했습니다. 세부 상태와 완료 기준은 [TASKS.md](docs/TASKS.md)에 있습니다.
 
 설계 원칙은 [DESIGN.md](docs/DESIGN.md), 통신 규격은 [PROTOCOL.md](docs/PROTOCOL.md), 서버는 [SERVER.md](docs/SERVER.md), 차 앱은 [CAR_APP.md](docs/CAR_APP.md)에 있습니다.

@@ -2,7 +2,7 @@
 
 에이전트는 이 목록을 위에서부터 집어 간다. 각 작업은 **완료 기준을 모두 만족해야** 끝난 것이다. 끝나면 체크하고, 결정·검증 결과를 관련 설계 문서에 반영한다.
 
-**현황 기준: 2026-11-07, P3 완료 커밋 `f5c7502` 기반 P4 debug 범위 완료**. P1/P2와 P3 실제 서버 연동은 완료 이력이다. **P4 전체 243개 GREEN·최종 증분 실행·최신 APK 권한/마커·양쪽 공유·이동/근접/탑승·알림 종료·app_closed 서버 종료로 main QA signoff를 받아 P4를 체크했다.** 근거와 검증 경계는 PHONE_APP.md 8절에 기록하며 독립 검토 결과는 최종 QA 근거와 함께 관리한다. P1/P2 이력은 6절, P3의 phone 111개·합계 170개는 7절에 보존한다. A6(실제 발화)와 S4(Docker 빌드)는 미검증이라 미완료다.
+**현황 기준: 2026-11-08, HEAD `d5bdcc5`**. P4는 `3c0b427`, 차의 좌표 겹침 지도 수정은 `d5bdcc5`에 커밋됐다. **D1 실제 차·폰 데모 재현, S4 Docker 이미지 빌드·컨테이너 health 확인, D4 촬영 대본을 완료했다.** 영상 녹화·편집은 사용자 작업으로 남아 있다. P4의 243개 테스트와 debug QA는 기존 완료 이력이며 PHONE_APP.md 8절에 보존한다. 이번 제출 준비에서는 앱 소스를 변경하지 않았고 차·폰 debug 조립과 실제 시연을 확인했다. A6 실제 발화와 S5 Railway 배포는 미완료다.
 
 - 1차 제출 마감: **2026-11-15(일)**, 목표 11/14. 2차 PT: 12/3~4.
 - 기존 P2 검증 이력(UI 재설계 전): phone 테스트 16개·debug 조립 성공(7초), 메인 JBR 21의 `:protocol:test :app:testDebugUnitTest :app:assembleDebug --rerun-tasks --offline --no-daemon --console=plain` 성공(12초·47개 태스크 실행), app 46 + protocol 9 = **55개 통과**, 실패·오류·건너뜀 0. 서버는 소스 변경 없이 미재실행(기존 34개). 폰 lint 온라인 성공(28초·오류 0·경고 8), 폰 AVD 설치·화면·입력·회전·프로세스 재생성 검증은 PHONE_APP.md 6절에 정리했다.
@@ -19,8 +19,9 @@
 |---|---|---|
 | 11/6(금) ✅ | 컨셉 확정, 통신·탑승 신호 확인, 문서 작성 | - |
 | 11/7(토) 완료 | 사전 확인 C1·N1·V1, 서버 S1~S3, 공용 M1, 차 앱 A1~A9 구현·지도, 폰 P1/P2/P3와 P4 debug 범위 main QA 완료 | 실제 발화 확인은 대기 |
-| 11/8~12(일~목) 목표 | S4 Docker 빌드 검증·통합 제출 준비 | Railway 배포(S5), 팀명(U1), 접수양식(U2), 음성 실제 발화(A6) |
-| 11/13(금) | D1, D2, D3, 기획서 최종본 정리, D4 대본 | 시연 영상 녹화(D4) |
+| 11/8(일) 완료 | D1 실제 차·폰 시연, S4 Docker 빌드·health·컨테이너 정리, D4 150초 촬영 대본 | 시연 영상 녹화·편집은 대기 |
+| 11/9~12(월~목) 목표 | 통합 제출 준비 | Railway 배포(S5), 팀명(U1), 접수양식(U2), 음성 실제 발화(A6) |
+| 11/13(금) | D2, D3, 기획서 최종본 정리 | 시연 영상 녹화(D4) |
 | 11/14(토) | 최종 점검 | GitHub 생성(D5), 기획서·개인정보 동의서 제출 |
 
 ## 사용자가 할 일 (모아 보기)
@@ -34,7 +35,7 @@
 | S5 | Railway에 서버 배포, 배포 URL 전달 (README "Railway 배포") | A5 이후 아무 때나, D3 전 필수 | 대기 |
 | P1 | 기존 폰 에뮬레이터 이미지로 차·폰 동시 실행 확인 | P2 전 | 11/07 완료, 추가 다운로드 없음 |
 | A6 | 음성 인식 테스트 때 PC 마이크에 승인·거절 발화하기("응"/"아니") | A6 완료 전 | 대기 |
-| D4 | 시연 영상 녹화·편집 | 11/13 | 대기 |
+| D4 | 시연 영상 녹화·편집 | 11/13 | 대기(촬영 대본 11/08 완료) |
 | D5 | GitHub 저장소 생성과 푸시 승인 | 11/14 | 대기 |
 | - | 기획서 제출(메일), 개인정보 동의서 서명 | 11/14 | 대기 |
 
@@ -55,7 +56,7 @@
   - 완료 기준: `TokenServiceTest`, `PairingCodeStoreTest` 통과. curl로 등록 → 코드 → 페어링 성공, 토큰 없이 코드 발급 시 `401 INVALID_TOKEN`.
 - [x] **S3. WebSocket과 세션** — ConnectionRegistry, MaejungWebSocketHandler, SessionService, SessionSweeper.
   - 완료 기준: SERVER.md 6절의 `SessionServiceTest`, `WebSocketFlowTest`(①~⑤) 통과.
-- [ ] **S4. 배포 준비·빌드 검증** — Dockerfile·Railway 설정 안내는 작성됐다(Root Directory `server`, 환경변수 `SPRING_PROFILES_ACTIVE=railway`·`MAEJUNG_TOKEN_SECRET`, 헬스체크 `/health`). 11/07 로컬 `docker build`는 Docker Hub 이미지 메타데이터 조회에서 멈춰 이미지 빌드 성공을 확인하지 못했다. `bootJar`가 jar 하나만 만드는 것은 확인했다. Docker 이미지 빌드 검증이 남아 있다.
+- [x] **S4. 배포 준비·빌드 검증** — 11/08 `docker build -t maejung-server server` 성공(`bootJar` 49초, 4개 태스크 실행). 이미지로 검증용 컨테이너 `maejung-s4-20261108-0105`를 `127.0.0.1:18080:8080`에 띄워 `/health`의 `{"status":"ok"}`를 확인한 뒤 컨테이너만 중지·제거했다. 기존 8080 서버와 에뮬레이터는 유지했다. Dockerfile·Railway 설정 안내(Root Directory `server`, `SPRING_PROFILES_ACTIVE=railway`·`MAEJUNG_TOKEN_SECRET`, `/health`)는 작성돼 있으며 실제 Railway 배포는 S5에 남아 있다.
   - 완료 기준: `docker build -t maejung-server server` 성공(Docker가 없으면 사용자에게 알리고 건너뛴다).
 - [ ] **S5. Railway 배포** — 담당: **사용자**. 서비스 생성, 환경변수 입력, 배포 URL을 알려 준다. 에이전트는 받은 URL을 `local.properties`의 `maejung.serverUrl`에 넣는 방법만 안내한다.
 
@@ -86,6 +87,8 @@
   - 완료 기준: 정차 상태로 3분 두어도 서버가 `peer_lost`로 끊지 않음. 탑승자 위치를 옮기면 SharingScreen의 거리·방향·ETA가 바뀜. 서버 로그에 `eta.update`가 30초 간격으로 찍힘.
 - [x] **A9. 공유 화면 지도** — 11/07 `74821e3`에 구현. `PickupMap`은 osmdroid 6.1.20 + OpenStreetMap 타일로 차(검정)·탑승자(파랑)·차 주변 50m 원을 표시하고 두 점이 보이도록 화면을 맞춘다. 지도는 왼쪽, 거리·8방위·ETA·종료 버튼은 오른쪽이다. 5m 미만은 방향을 숨기고 30초 미만 ETA는 "곧 도착"으로 표시한다.
   - 검증 기록: 에뮬레이터 지도 표시, 근접 흐름, 재설치 후 재진입 확인. 코드에는 앱 식별 User-Agent와 출처 표시가 있다.
+- [x] **A10. 대기 중 혜택 데모 화면** — 11/08, 1차 영상에 넣기로 해서 추가. `ui/WaitingOffers.kt`가 Sharing + 기어 P에서만 지어낸 혜택 2개와 "제휴 예시"를 공유 화면 오른쪽에 보여주고, P 이탈·Nearby에서는 숨긴다. 광고 SDK·서버 통신·누르는 곳은 없다. 상세는 CAR_APP.md 4절.
+  - 완료 기준: `WaitingOffersTest` 3개 통과(차 앱 53개), 에뮬레이터에서 P·Sharing 표시와 Nearby 숨김 확인(11/08 확인).
 
 ## 4. 폰 앱 (`phone/`)
 
@@ -110,20 +113,23 @@
 
 ## 5. 통합과 제출
 
-- [ ] **D1. 데모 리플레이 스크립트** — `scripts/demo.sh`.
+- [x] **D1. 데모 리플레이 스크립트** — 11/08 [scripts/demo.sh](../scripts/demo.sh)로 실제 차 `emulator-5554`·폰 `emulator-5556`에서 아래 1~5단계를 끝까지 재현하고 종료 코드 0을 확인했다. `fake-rider`는 사용하지 않았다.
   - 시나리오(기획서 4절 "수요일 밤 10시, 대치동 학원가"):
     1. 차가 학원 근처에 정차(기어 P).
     2. 민지가 폰에서 "데리러 와줘" → 차에서 승인.
     3. 민지가 학원 출입구에서 차로 걸어온다(폰 위치 이동).
-    4. 50m 안에 들어오면 실내등이 켜지고 폰에 "실내등 켜진 차가 엄마 차예요".
+    4. 50m 안에 들어오면 실내등이 켜지고 폰에 "실내등을 켰어요"·"실내등 켜진 차를 찾아주세요".
     5. 민지가 뒷문(RR)을 열고 닫으면 탑승 확인 → 양쪽 종료, 실내등 복구.
   - 좌표: 차 정차 위치 `37.49950, 127.06030`, 학원 출입구 `37.49830, 127.06280`(약 260m). 학원 → 차를 15등분해 3초 간격으로 `adb -s emulator-5556 emu geo fix <경도> <위도>`.
-  - 스크립트가 할 수 없는 단계(Virtual Console에서 기어 P, RR 문 열고 닫기)는 화면에 안내 문구를 띄우고 Enter를 기다린다.
+  - 서버 `/health`와 기기·설치 앱을 먼저 확인한다. 기본 adb는 `~/Library/Android/sdk/platform-tools/adb`이며 serial·서버 주소는 인자/환경변수로 바꿀 수 있다. Virtual Console 기어 P·RR 문과 앱 요청·수락·화면 확인은 안내 후 총 9번 Enter를 기다린다. 실패·EOF·Ctrl-C 때 후속 단계를 실행하지 않는다.
   - 완료 기준: 스크립트 한 번으로 1~5단계가 재현됨.
+  - 실행 결과: 기존 `MinjiP3` 폰 연결을 유지해 요청 → 차 버튼 수락 → 15단계 이동 → 34m Nearby·실내등 ON 안내 → 0m 지도 유지 → RR 열림/닫힘 → 양쪽 `boarded` 종료·홈 복귀를 확인했다. 차 홈은 "민지, MinjiP3"로 민지가 한 번만 표시됐다. 위치 서비스·공유 알림은 없어졌고, 종료 후 차를 Idle에서 재시작해 SDK 실내등 조회값 OFF로 원래 상태 복구를 확인했다. 화면·로그 근거와 검증 범위는 [DEMO_SCRIPT.md 4절](DEMO_SCRIPT.md#4-실행-검증-결과)에 있다.
 - [ ] **D2. README 제출본 보완** — 루트 `README.md`에 서버·차 실행, 가짜 탑승자, P1/P2 이력과 P3/P4 실제 폰·차 연동·debug 검증 결과를 반영했다. S5·D3 완료 후 배포 주소·release APK 위치를 채워 제출본을 완성한다.
 - [ ] **D3. 릴리스 APK** — 차 앱 `apk/팀명_마중_release.apk`. 팀명은 **사용자에게 확인**한다. 폰 앱도 같은 폴더에 `팀명_마중_phone_release.apk`.
   - 서명: 에이전트가 `keytool`로 `keystore/maejung-release.jks`를 만들고, 비밀번호는 `keystore.properties`에 둔다. **둘 다 `.gitignore`에 넣고 커밋하지 않는다.** 백업은 사용자에게 알린다.
   - release `SERVER_URL`은 S5의 Railway URL이 필요하다(S5 뒤에 한다).
   - 완료 기준: 두 APK가 에뮬레이터에 설치되어 Railway 서버로 D1 시나리오가 동작.
 - [ ] **D4. 시연 영상** — 담당: **사용자**(녹화·편집). 에이전트는 D1 순서에 맞춘 촬영 대본(장면, 화면, 내레이션)을 `docs/DEMO_SCRIPT.md`로 만든다.
+  - [x] 11/08 [촬영 대본](DEMO_SCRIPT.md) 완료: 기획서의 수요일 밤 10시 대치동 학원가, 실제 차·폰·Virtual Console 조작, 장면별 내레이션·시간, 총 150초 구성.
+  - [ ] 사용자 영상 녹화·편집. 대본의 150초는 편집 목표이며 수동 확인을 포함한 D1 실행 소요시간과 다르다.
 - [ ] **D5. GitHub 저장소 생성과 푸시** — 담당: **사용자** 확인 후 진행. 푸시 전 `keystore/`, `keystore.properties`, `local.properties`가 추적되지 않는지 확인.

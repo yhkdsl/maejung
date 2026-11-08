@@ -67,13 +67,14 @@ fun SharingScreen(
     nearby: Boolean,
     lightOn: Boolean,
     onEnd: () -> Unit,
+    offers: List<WaitingOffer> = emptyList(),
 ) {
     // 왼쪽은 지도(아이·차 위치), 오른쪽은 큰 글씨 안내와 버튼 하나
     Row(modifier = Modifier.fillMaxSize()) {
         // MapView는 자기 영역 밖까지 그려서 오른쪽 글자를 덮는다. 영역 안으로 자르고 오른쪽은 배경을 칠한다
         PickupMap(car = car, rider = rider, modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds())
         SharingInfo(
-            riderName, distanceM, bearing, eta, nearby, lightOn, onEnd,
+            riderName, distanceM, bearing, eta, nearby, lightOn, offers, onEnd,
             Modifier.weight(1f).background(MaterialTheme.colorScheme.surface),
         )
     }
@@ -87,6 +88,7 @@ private fun SharingInfo(
     eta: Eta?,
     nearby: Boolean,
     lightOn: Boolean,
+    offers: List<WaitingOffer>,
     onEnd: () -> Unit,
     modifier: Modifier,
 ) {
@@ -117,6 +119,7 @@ private fun SharingInfo(
         }
         if (lightOn) Text("실내등을 켰어요", fontSize = 36.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
         Spacer(Modifier.weight(1f))
+        if (offers.isNotEmpty()) WaitingOffersPanel(offers)
         OutlinedButton(
             onClick = onEnd,
             modifier = Modifier.fillMaxWidth().height(160.dp),

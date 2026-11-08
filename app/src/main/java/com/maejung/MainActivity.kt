@@ -20,6 +20,7 @@ import com.maejung.ui.HomeUiState
 import com.maejung.ui.MapPoint
 import com.maejung.ui.RequestScreen
 import com.maejung.ui.SharingScreen
+import com.maejung.ui.waitingOffers
 import com.maejung.vehicle.CabinSwitch
 
 class MainActivity : ComponentActivity() {
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
                             nearby = false,
                             lightOn = false,
                             onEnd = viewModel::end,
+                            offers = waitingOffers(phase, session.gear),
                         )
                         is Phase.Nearby -> SharingScreen(
                             phase.riderName,
